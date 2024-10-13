@@ -1,0 +1,7 @@
+# This requirements file specifies the dependencies needed for the API Gateway component of the backend platform.
+# Each dependency is crucial for the functionality, security, and testing of the API services.
+
+pydantic==1.8.2  # Used for data validation and settings management within the data models, ensuring data integrity and compliance with defined schemas.
+PyJWT==2.3.0  # To encode and decode JSON Web Tokens for secure token-based authentication, supporting OAuth 2.0 implementation.
+pytest==6.2.4  # Framework for writing and executing unit tests, ensuring code reliability and correctness through automated testing.
+httpx==0.18.2  # To make HTTP requests to the FastAPI application during testing, facilitating integration and end-to-end tests.
