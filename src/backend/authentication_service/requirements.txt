@@ -1,0 +1,86 @@
+# This file specifies the external libraries and their versions required for the FastAPI application to function correctly.
+
+# FastAPI framework for building APIs
+# Version: 0.68.1
+# Purpose: To create the web application and define API routes.
+fastapi==0.68.1
+
+# ASGI server for running FastAPI
+# Version: 0.15.0
+# Purpose: To run the FastAPI application.
+uvicorn==0.15.0
+
+# JWT token handling
+# Version: 2.3.0
+# Purpose: To encode and decode JSON Web Tokens for secure token-based authentication.
+PyJWT==2.3.0
+
+# Environment variable management
+# Version: 0.19.2
+# Purpose: To load environment variables from a .env file.
+python-dotenv==0.19.2
+
+# Testing framework
+# Version: 6.2.5
+# Purpose: To provide a testing framework for writing and running test cases.
+pytest==6.2.5
+
+# HTTP client for Python (used for testing)
+# Version: 2.27.1
+# Purpose: To make HTTP requests in test cases.
+requests==2.27.1
+
+# Password hashing
+# Version: 1.7.4
+# Purpose: To securely hash and verify passwords.
+passlib==1.7.4
+
+# Cryptography library (required by passlib for bcrypt)
+# Version: 3.4.8
+# Purpose: To provide cryptographic recipes and primitives.
+cryptography==3.4.8
+
+# CORS middleware for FastAPI
+# Version: 0.13.0
+# Purpose: To handle Cross-Origin Resource Sharing (CORS) in the API.
+fastapi-cors==0.13.0
+
+# SQL toolkit and Object-Relational Mapping (ORM)
+# Version: 1.4.25
+# Purpose: To interact with the database and perform ORM operations.
+SQLAlchemy==1.4.25
+
+# PostgreSQL adapter for Python
+# Version: 2.9.1
+# Purpose: To connect to PostgreSQL database.
+psycopg2-binary==2.9.1
+
+# Dependency injection framework
+# Version: 4.39.1
+# Purpose: To manage dependencies and facilitate testing.
+dependency-injector==4.39.1
+
+# Logging library
+# Version: 0.5.3
+# Purpose: To provide enhanced logging capabilities.
+loguru==0.5.3
+
+# Validation library
+# Version: 1.8.2
+# Purpose: To validate and serialize data.
+pydantic==1.8.2
+
+# Rate limiting library
+# Version: 0.7.2
+# Purpose: To implement rate limiting for API endpoints.
+fastapi-limiter==0.7.2
+
+# Redis client (used for rate limiting)
+# Version: 3.5.3
+# Purpose: To interact with Redis for rate limiting storage.
+redis==3.5.3
+
+# Requirements addressed:
+# - Authentication and Authorization Implementation (Technical Requirements/Feature 4: Authentication and Authorization Implementation)
+#   This file includes libraries necessary for implementing secure authentication and authorization mechanisms,
+#   such as PyJWT for token handling, passlib for password hashing, and fastapi-cors for secure cross-origin requests.
