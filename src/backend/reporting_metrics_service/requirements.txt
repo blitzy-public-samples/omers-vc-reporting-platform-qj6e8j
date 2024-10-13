@@ -1,0 +1,53 @@
+# FastAPI framework for building APIs
+fastapi==0.68.0
+
+# SQLAlchemy ORM for database interactions
+sqlalchemy==1.4.22
+
+# Pytest framework for writing and executing test cases
+pytest==6.2.4
+
+# Uvicorn ASGI server for running FastAPI applications
+uvicorn==0.15.0
+
+# Pydantic for data validation and settings management
+pydantic==1.8.2
+
+# Databases for async database support
+databases==0.5.2
+
+# Asyncpg for PostgreSQL database driver
+asyncpg==0.24.0
+
+# Python-dotenv for loading environment variables
+python-dotenv==0.19.0
+
+# Requests for making HTTP requests (used in tests)
+requests==2.26.0
+
+# Alembic for database migrations
+alembic==1.7.3
+
+# Psycopg2-binary for PostgreSQL adapter
+psycopg2-binary==2.9.1
+
+# Dependency injector for managing dependencies
+dependency-injector==4.39.1
+
+# Loguru for enhanced logging capabilities
+loguru==0.5.3
+
+# Prometheus client for metrics collection
+prometheus-client==0.11.0
+
+# Azure Identity for Azure AD authentication
+azure-identity==1.7.0
+
+# Azure Key Vault for secrets management
+azure-keyvault-secrets==4.3.0
+
+# Tenacity for retrying operations
+tenacity==8.0.1
+
+# Gunicorn for production WSGI HTTP Server
+gunicorn==20.1.0
