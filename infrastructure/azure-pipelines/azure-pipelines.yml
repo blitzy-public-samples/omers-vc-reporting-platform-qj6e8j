@@ -1,0 +1,185 @@
+# Azure Pipelines configuration for OMERS Ventures Backend Platform
+# This file defines the CI/CD pipeline for building, testing, and deploying the backend services.
+
+# Trigger the pipeline on pushes to the main branch
+trigger:
+  - main
+
+# Use the latest Ubuntu agent pool
+pool:
+  vmImage: 'ubuntu-latest'
+
+# Define variables for reuse across stages
+variables:
+  - group: 'backend-secrets' # Link to variable group in Azure DevOps
+  - name: dockerRegistryServiceConnection
+    value: 'your-acr-service-connection'
+  - name: containerRegistry
+    value: 'your-acr-name.azurecr.io'
+  - name: dockerfilePath
+    value: '$(Build.SourcesDirectory)/Dockerfile'
+  - name: tag
+    value: '$(Build.BuildId)'
+
+# Define the stages of the pipeline
+stages:
+- stage: Build
+  displayName: Build stage
+  jobs:
+  - job: Build
+    displayName: Build and push Docker images
+    steps:
+    - task: Docker@2
+      displayName: Build and push API image
+      inputs:
+        command: buildAndPush
+        repository: $(containerRegistry)/backend-api
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+
+    # Build and push other service images as needed
+    # Example for Authentication Service:
+    - task: Docker@2
+      displayName: Build and push Authentication Service image
+      inputs:
+        command: buildAndPush
+        repository: $(containerRegistry)/auth-service
+        dockerfile: $(Build.SourcesDirectory)/src/backend/authentication_service/Dockerfile
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+          latest
+
+- stage: Test
+  displayName: Test stage
+  jobs:
+  - job: UnitTests
+    displayName: Run unit tests
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.9'
+        addToPath: true
+    - script: |
+        pip install -r requirements.txt
+        pip install pytest
+        pytest tests/unit
+      displayName: 'Run unit tests'
+      workingDirectory: $(Build.SourcesDirectory)/src/backend
+
+  - job: IntegrationTests
+    displayName: Run integration tests
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.9'
+        addToPath: true
+    - script: |
+        pip install -r requirements.txt
+        pip install pytest
+        pytest tests/integration
+      displayName: 'Run integration tests'
+      workingDirectory: $(Build.SourcesDirectory)/src/backend
+
+- stage: Deploy
+  displayName: Deploy stage
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy to AKS
+    environment: 'production'
+    pool:
+      vmImage: 'ubuntu-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: Kubernetes@1
+            displayName: 'Deploy to AKS'
+            inputs:
+              connectionType: 'Kubernetes Service Connection'
+              namespace: 'default'
+              manifests: |
+                $(Pipeline.Workspace)/k8s/deployment.yml
+                $(Pipeline.Workspace)/k8s/service.yml
+              imagePullSecrets: |
+                $(imagePullSecret)
+              containers: |
+                $(containerRegistry)/backend-api:$(tag)
+
+# Post-deployment tasks
+- stage: PostDeploy
+  displayName: Post-deployment tasks
+  jobs:
+  - job: Monitoring
+    displayName: Set up monitoring
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'your-azure-subscription'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          # Set up Azure Monitor alerts
+          az monitor alert create \
+            --name "High CPU Usage" \
+            --resource-group "your-resource-group" \
+            --scopes "/subscriptions/your-subscription-id/resourceGroups/your-resource-group/providers/Microsoft.ContainerService/managedClusters/your-aks-cluster" \
+            --condition "avg Percentage CPU > 80" \
+            --description "Alert when CPU usage is high" \
+            --evaluation-frequency 5m \
+            --window-size 5m
+
+  - job: Backup
+    displayName: Trigger database backup
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'your-azure-subscription'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          # Trigger a backup of the PostgreSQL database
+          az postgres server backup create \
+            --resource-group "your-resource-group" \
+            --server-name "your-postgres-server" \
+            --backup-name "post-deploy-backup-$(Build.BuildId)"
+
+# Define the order of stage execution
+- stage: Cleanup
+  displayName: Cleanup
+  jobs:
+  - job: CleanupResources
+    displayName: Cleanup temporary resources
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'your-azure-subscription'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          # Clean up any temporary resources created during the pipeline
+          # This could include removing old container images, temporary storage, etc.
+          az acr repository delete \
+            --name "your-acr-name" \
+            --repository "backend-api" \
+            --tag "$(tag)" \
+            --yes
+
+# Notifications
+- stage: Notify
+  displayName: Send notifications
+  jobs:
+  - job: SendNotifications
+    displayName: Send deployment notifications
+    steps:
+    - task: SendTeamsMessage@0
+      inputs:
+        message: 'Backend platform deployment completed successfully. Build ID: $(Build.BuildId)'
+        teamUri: '$(TeamsWebhookUrl)'
+
+# Note: This pipeline assumes the existence of Kubernetes deployment files,
+# Azure resource groups, and other infrastructure components.
+# Ensure all necessary Azure resources and configurations are in place before running this pipeline.
