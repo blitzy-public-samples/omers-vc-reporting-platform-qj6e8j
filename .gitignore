@@ -1,0 +1,50 @@
+# Ignore Python bytecode files
+*.pyc
+
+# Ignore Python optimization files
+*.pyo
+
+# Ignore Docker build files
+src/backend/authentication_service/Dockerfile
+src/backend/api_gateway/Dockerfile
+src/backend/metrics_input_service/Dockerfile
+src/backend/reporting_financials_service/Dockerfile
+src/backend/reporting_metrics_service/Dockerfile
+
+# Ignore environment configuration files
+*.env
+
+# Ignore log files
+*.log
+
+# Ignore Node.js modules
+node_modules/
+
+# Ignore build directories
+build/
+
+# Ignore distribution directories
+dist/
+
+# Ignore Python egg info directories
+*.egg-info/
+
+# Ignore IDE configuration files
+.vscode/
+.idea/
+
+# Ignore Terraform state files
+*.tfstate
+
+# Ignore Terraform backup files
+*.tfstate.backup
+
+# Ignore Python virtual environments
+venv/
+.venv/
+
+# Ignore test cache directories
+__pycache__/
+
+# Ignore pytest cache directories
+*.pytest_cache/
