@@ -1,0 +1,23 @@
+# Azure Functions SDK
+azure-functions==1.15.0  # Latest version as of the time of writing
+
+# HTTP requests library
+requests==2.31.0  # Latest stable version
+
+# Data manipulation and analysis
+pandas==2.0.3  # Latest stable version
+numpy==1.25.2  # Latest stable version
+
+# This file specifies the dependencies required for the data transformation function in Azure Functions.
+# It ensures that all necessary libraries and modules are available for the function to execute data transformation tasks,
+# including currency conversion and derivative metric calculations.
+
+# Requirement addressed:
+# Name: Data Transformation Processes
+# Location: Technical Requirements/Feature 3: Data Transformation Processes
+# Description: Automate the retrieval of foreign exchange rates and calculation of derivative financial metrics
+# to enhance data accuracy and reduce manual intervention.
+
+# Internal dependency:
+# The transform_data function from src/functions/data_transformation/main.py is used to perform
+# the core data transformation logic including currency conversion and derivative calculations.
