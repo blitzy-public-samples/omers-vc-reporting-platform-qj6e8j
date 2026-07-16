@@ -40,11 +40,6 @@ passlib==1.7.4
 # Purpose: To provide cryptographic recipes and primitives.
 cryptography==3.4.8
 
-# CORS middleware for FastAPI
-# Version: 0.13.0
-# Purpose: To handle Cross-Origin Resource Sharing (CORS) in the API.
-fastapi-cors==0.13.0
-
 # SQL toolkit and Object-Relational Mapping (ORM)
 # Version: 1.4.25
 # Purpose: To interact with the database and perform ORM operations.
@@ -69,11 +64,6 @@ loguru==0.5.3
 # Version: 1.8.2
 # Purpose: To validate and serialize data.
 pydantic==1.8.2
-
-# Rate limiting library
-# Version: 0.7.2
-# Purpose: To implement rate limiting for API endpoints.
-fastapi-limiter==0.7.2
 
 # Redis client (used for rate limiting)
 # Version: 3.5.3
