@@ -84,6 +84,29 @@ stages:
       displayName: 'Run integration tests'
       workingDirectory: $(Build.SourcesDirectory)/src/backend
 
+- stage: SecurityScan
+  displayName: Dependency vulnerability scan
+  jobs:
+  - job: DependencyScan
+    displayName: Scan Python dependencies with pip-audit
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.9'
+        addToPath: true
+    - script: |
+        python -m pip install --upgrade pip
+        pip install pip-audit
+        pip-audit \
+          -r src/backend/api_gateway/requirements.txt \
+          -r src/backend/authentication_service/requirements.txt \
+          -r src/backend/metrics_input_service/requirements.txt \
+          -r src/backend/reporting_financials_service/requirements.txt \
+          -r src/backend/reporting_metrics_service/requirements.txt \
+          -r src/functions/data_transformation/requirements.txt
+      displayName: 'Run pip-audit dependency vulnerability scan'
+      workingDirectory: $(Build.SourcesDirectory)
+
 - stage: Deploy
   displayName: Deploy stage
   jobs:

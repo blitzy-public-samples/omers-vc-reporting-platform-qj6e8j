@@ -57,6 +57,15 @@ The API Gateway is built using FastAPI, a modern, fast (high-performance) web fr
    AZURE_AD_CLIENT_SECRET=your_client_secret
    ```
 
+### Required environment variables
+
+The following environment variables are read by `config.py`. The service **fails to start** if a required variable is missing:
+
+- `DATABASE_URL` — **required** (no default); PostgreSQL connection string.
+- `SECRET_KEY` — **required** (no default); used for JWT signing.
+- `API_KEY` — **required** (no default); key used to authenticate API requests.
+- `CORS_ALLOW_ORIGINS` — comma-separated list of **explicit allowed origins** for CORS (e.g. `http://localhost:3000,https://app.omersventures.com`); **must NOT be a wildcard `*`**. Defaults to `http://localhost:3000` if unset. (Variable name is `CORS_ALLOW_ORIGINS`, matching `.env.sample`.)
+
 ## Running the API
 
 To start the API Gateway:

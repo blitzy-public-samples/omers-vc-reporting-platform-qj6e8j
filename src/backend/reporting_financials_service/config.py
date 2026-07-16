@@ -9,7 +9,7 @@ Requirements addressed:
 """
 
 import os
-from pydantic import BaseSettings, PostgresDsn, SecretStr
+from pydantic import BaseSettings, PostgresDsn, SecretStr, Field
 
 class Config(BaseSettings):
     """
@@ -33,10 +33,10 @@ class Config(BaseSettings):
     API_VERSION: str = "v1"
 
     # CORS settings
-    CORS_ORIGINS: list = ["*"]  # In production, specify allowed origins
+    CORS_ORIGINS: list = ["http://localhost:3000"]  # CWE-942: no wildcard; restrict origins
 
     # JWT settings for authentication
-    JWT_SECRET_KEY: SecretStr = os.getenv("JWT_SECRET_KEY", "your-secret-key")
+    JWT_SECRET_KEY: SecretStr = Field(..., min_length=32, env="JWT_SECRET_KEY")  # CWE-798/CWE-259: require from env, min length 32
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 

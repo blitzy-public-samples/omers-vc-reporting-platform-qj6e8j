@@ -1,5 +1,5 @@
-# Use the official Python 3.8 slim image as the base image
-FROM python:3.8-slim
+# Use the official Python 3.9 slim image as the base image
+FROM python:3.9-slim
 
 # Set the working directory in the container to /app
 WORKDIR /app
@@ -15,6 +15,10 @@ COPY . .
 
 # Expose the port that the FastAPI application will run on
 EXPOSE 8000
+
+# Run as a dedicated non-root user (CWE-250 least privilege)
+RUN useradd -m myuser
+USER myuser
 
 # Define the command to run the FastAPI application using uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

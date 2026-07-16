@@ -11,6 +11,8 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import logging
+import uuid
 
 # Import internal dependencies
 from src.backend.authentication_service.config import load_config
@@ -18,6 +20,9 @@ from src.backend.authentication_service.app.security import generate_token, vali
 
 # FastAPI version: 0.68.1
 # Uvicorn version: 0.15.0
+
+# Module-level logger for security-event logging (FR-8.5 / FR-10.6)
+logger = logging.getLogger(__name__)
 
 def create_app() -> FastAPI:
     """
@@ -40,7 +45,7 @@ def create_app() -> FastAPI:
     # Configure CORS middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Adjust this in production to specific origins
+        allow_origins=config['CORS_ORIGINS'],  # CORS allow-list (CWE-942)
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -70,6 +75,9 @@ def create_app() -> FastAPI:
             token = generate_token(username)
             return {"access_token": token, "token_type": "bearer"}
         else:
+            # Security-event logging: authentication failure (FR-8.5 / FR-10.6)
+            correlation_id = str(uuid.uuid4())
+            logger.warning("security_event=authentication_failure correlation_id=%s username=%s", correlation_id, username)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
@@ -93,6 +101,9 @@ def create_app() -> FastAPI:
         try:
             user_id = validate_token(token)
             if user_id is None:
+                # Security-event logging: token validation failure (FR-8.5 / FR-10.6)
+                correlation_id = str(uuid.uuid4())
+                logger.warning("security_event=token_validation_failure correlation_id=%s reason=missing_subject", correlation_id)
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid or expired token",
@@ -100,6 +111,9 @@ def create_app() -> FastAPI:
                 )
             return {"message": f"Hello, {user_id}! This is a protected route."}
         except Exception as e:
+            # Security-event logging: token validation failure (FR-8.5 / FR-10.6)
+            correlation_id = str(uuid.uuid4())
+            logger.warning("security_event=token_validation_failure correlation_id=%s reason=%s", correlation_id, type(e).__name__)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired token",

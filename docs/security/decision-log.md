@@ -1,0 +1,18 @@
+# Security Remediation Decision Log
+
+This decision log is the single source of truth for the rationale behind the security-remediation engagement on the OMERS Ventures Backend Platform. It mirrors Section 0.10.2 of the Technical Specification and records every non-trivial decision, the alternatives considered, the justification, and the residual risk. The table below has four columns: Decision, Alternatives Considered, Rationale, and Risk.
+
+| Decision | Alternatives Considered | Rationale | Risk |
+|----------|-------------------------|-----------|------|
+| Keep Pydantic on the v1 line (`1.10.13+`) | Migrate to Pydantic v2 + `pydantic-settings` | Preserves the `BaseSettings` API used throughout; honors the Minimal Change Clause | v1 will eventually be end-of-life; a future v2 migration remains a follow-up |
+| Cap FastAPI at `[0.109.1, 0.126.0)` | Upgrade to the latest FastAPI | FastAPI 0.126.0 drops Pydantic v1 support; 0.109.1 already clears CVE-2024-24762 | Misses newest FastAPI features until the v2 migration |
+| Version bump, not package replacement | Replace vulnerable packages with alternatives | Every vulnerable package has a maintained patched release; bump is least invasive | None material |
+| Bump `cryptography` although it is declared-but-unwired | Leave it pinned at 3.4.8 | It remains in the container image attack surface; hygiene and defense-in-depth | Minor build-surface change, covered by tests |
+| CORS: consume an explicit origins allow-list | Set `allow_credentials=False` only | Retains credentialed flows for legitimate origins while removing wildcard exposure | Operators must configure real origins per environment |
+| Require secrets from env with a min-length guard | Auto-generate a secret at startup | Mirrors the existing secure pattern; fails closed on misconfiguration | Deployments must set the secret env vars |
+| Add the CI scan gate to Azure Pipelines | Add a `.github/workflows` action | The repository uses Azure Pipelines, not GitHub Actions | None |
+| Defer `pytest` 6.x→9.x and `loguru` | Upgrade now | Test-only / informational, local-only vectors; three-major `pytest` jump risks breaking tests | Low-severity residual advisory in the dev toolchain |
+| Scope observability to security-event logging (reuse logging) | Build full tracing + metrics now | Satisfies the Observability rule while respecting minimal change | Observability remains partial pending the noted follow-up |
+| IaC: reference the existing sensitive variable | Wire full Azure Key Vault retrieval now | `variables.tf` already declares the variable; least-invasive removal of the literal | Secret still requires secure provisioning at apply time |
+| Advance the base image on the two root containers | Keep `python:3.8-slim` and pin `cryptography < 49` | `python:3.8-slim` is end-of-life; the bump also enables current `cryptography` | Base-image behavioral drift, mitigated by the regression suite |
+| No `DELETE` transformations | Remove unwired dependencies / dead code | Out of security-fix scope; deletion could alter behavior | Unwired packages remain (patched rather than removed) |

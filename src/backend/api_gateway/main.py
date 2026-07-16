@@ -9,6 +9,7 @@
 #   from the PostgreSQL database.
 
 import logging
+import uuid
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel  # version 1.8.2
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     )
 
     # Configure CORS
+    # CORS allow-list (CWE-942)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -59,6 +61,9 @@ def create_app() -> FastAPI:
         Endpoint for generating JWT tokens for secure API access.
         """
         if not authenticate_user(username, password):
+            # Security-event logging (FR-8.5 / FR-10.6)
+            correlation_id = str(uuid.uuid4())
+            logger.warning("security_event=authentication_failure correlation_id=%s username=%s", correlation_id, username)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
@@ -78,6 +83,9 @@ def create_app() -> FastAPI:
         )
         username = validate_token(token)
         if username is None:
+            # Security-event logging (FR-8.5 / FR-10.6)
+            correlation_id = str(uuid.uuid4())
+            logger.warning("security_event=token_validation_failure correlation_id=%s reason=missing_subject", correlation_id)
             raise credentials_exception
         return username
 

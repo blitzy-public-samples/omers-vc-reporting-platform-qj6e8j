@@ -1,5 +1,5 @@
 import os
-from pydantic import BaseSettings
+from pydantic import BaseSettings, Field
 
 # Requirements addressed:
 # - API Development and Deployment (Technical Requirements/Feature 2: API Development and Deployment)
@@ -18,14 +18,15 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = os.getenv('ENVIRONMENT', 'development')
     
     # Database configuration
-    DATABASE_URL: str = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost/db')
+    DATABASE_URL: str = Field(..., env='DATABASE_URL')
     
     # API settings
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "Reporting Metrics Service"
     
     # Security settings
-    SECRET_KEY: str = os.getenv('SECRET_KEY', 'your-secret-key-here')
+    # Required from environment; no insecure default (CWE-798/CWE-259)
+    SECRET_KEY: str = Field(..., min_length=32, env='SECRET_KEY')
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # CORS settings

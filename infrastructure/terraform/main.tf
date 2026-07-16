@@ -99,7 +99,7 @@ resource "azurerm_postgresql_server" "postgresql" {
   auto_grow_enabled            = true
 
   administrator_login          = "psqladmin"
-  administrator_login_password = "H@Sh1CoR3!"
+  administrator_login_password = var.postgresql_admin_password
   version                      = "11"
   ssl_enforcement_enabled      = true
 
