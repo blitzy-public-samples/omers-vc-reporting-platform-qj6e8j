@@ -50,7 +50,14 @@ The Reporting Financials Service is a critical component of the OMERS Ventures b
    DATABASE_URL=postgresql://<username>:<password>@<host>:<port>/<database_name>
    API_KEY=<your_api_key_here>
    LOG_LEVEL=INFO
+   JWT_SECRET_KEY=<required - at least 32 characters>
+   CORS_ORIGINS=http://localhost:3000
    ```
+
+   **Required environment variables (security):**
+   - `JWT_SECRET_KEY`: **required**, supplied from the environment (no built-in default) and must be **at least 32 characters**. The service fails to start if it is missing or shorter than 32 characters.
+   - `CORS_ORIGINS`: comma-separated list of explicitly allowed browser origins; **must not be `*`**. Declare the real origins for each environment before deploying to a browser-facing environment (example: `CORS_ORIGINS=http://localhost:3000`).
+   - `DATABASE_URL`: required PostgreSQL connection string.
 
 5. Run the application:
    ```bash

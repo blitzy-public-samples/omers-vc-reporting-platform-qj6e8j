@@ -74,11 +74,13 @@ To interact with the Reporting Metrics Service API:
 The service uses environment variables for configuration. Key configuration options include:
 
 - `ENVIRONMENT`: The current running environment (e.g., 'development', 'production')
-- `DATABASE_URL`: The connection string for the PostgreSQL database
-- `SECRET_KEY`: Secret key for JWT token generation
+- `DATABASE_URL`: The connection string for the PostgreSQL database. **Required** — must be provided via the environment; no default is bundled.
+- `SECRET_KEY`: Secret key for JWT token generation. **Required** — minimum 32 characters; no default is provided (fail-closed).
 - `ALGORITHM`: The algorithm used for JWT token encoding/decoding
 
 Refer to the `config.py` file for a complete list of configuration options.
+
+> **Container:** The service image now runs as a dedicated **non-root user** on the **`python:3.9-slim`** base image.
 
 ## Testing
 

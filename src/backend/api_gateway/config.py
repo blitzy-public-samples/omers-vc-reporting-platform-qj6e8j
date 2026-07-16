@@ -10,7 +10,8 @@ Requirements addressed:
 """
 
 import os
-from pydantic import BaseSettings, Field
+from typing import List, Union
+from pydantic import BaseSettings, Field, validator
 
 # Define the path to the .env file
 ENV_FILE = '.env'
@@ -32,11 +33,18 @@ class Settings(BaseSettings):
     # Secret key for JWT token encoding/decoding
     secret_key: str = Field(..., env='SECRET_KEY')
 
-    # CORS origins
-    cors_origins: list = Field(default_factory=lambda: ["*"], env='CORS_ORIGINS')
+    # CORS allow-list (CWE-942): explicit non-wildcard origins from CORS_ALLOW_ORIGINS
+    cors_origins: Union[str, List[str]] = Field(default_factory=lambda: ["http://localhost:3000"], env='CORS_ALLOW_ORIGINS')
 
     # JWT algorithm
     algorithm: str = Field(default="HS256", env='ALGORITHM')
+
+    @validator('cors_origins', pre=True)
+    def _split_cors_origins(cls, v):
+        # Accept comma-separated CORS_ALLOW_ORIGINS (see .env.sample) as an explicit list
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(',') if origin.strip()]
+        return v
 
     class Config:
         env_file = ENV_FILE

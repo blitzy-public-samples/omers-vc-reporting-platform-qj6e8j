@@ -28,6 +28,8 @@ def load_config():
     config = {
         'SECRET_KEY': os.getenv('SECRET_KEY'),
         'DATABASE_URL': os.getenv('DATABASE_URL'),
+        # CORS allow-list from environment; explicit non-wildcard origins (CWE-942)
+        'CORS_ORIGINS': [o.strip() for o in os.getenv('CORS_ORIGINS', os.getenv('CORS_ALLOW_ORIGINS', 'http://localhost:3000')).split(',') if o.strip()],
         'TOKEN_EXPIRATION': int(os.getenv('TOKEN_EXPIRATION', 30)),  # Default to 30 minutes if not set
         'DEBUG': os.getenv('DEBUG', 'False').lower() in ('true', '1', 't')
     }
