@@ -3,7 +3,7 @@
 # FastAPI framework for building APIs
 # Version: 0.68.1
 # Purpose: To create the web application and define API routes.
-fastapi==0.109.1
+fastapi==0.125.0
 
 # ASGI server for running FastAPI
 # Version: 0.15.0
@@ -13,12 +13,12 @@ uvicorn==0.15.0
 # JWT token handling
 # Version: 2.3.0
 # Purpose: To encode and decode JSON Web Tokens for secure token-based authentication.
-PyJWT==2.10.1
+PyJWT==2.13.0
 
 # Environment variable management
 # Version: 0.19.2
 # Purpose: To load environment variables from a .env file.
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # Testing framework
 # Version: 6.2.5
@@ -28,7 +28,7 @@ pytest==6.2.5
 # HTTP client for Python (used for testing)
 # Version: 2.27.1
 # Purpose: To make HTTP requests in test cases.
-requests==2.32.4
+requests==2.34.2
 
 # Password hashing
 # Version: 1.7.4
@@ -38,7 +38,7 @@ passlib==1.7.4
 # Cryptography library (required by passlib for bcrypt)
 # Version: 3.4.8
 # Purpose: To provide cryptographic recipes and primitives.
-cryptography==44.0.1
+cryptography==49.0.0
 
 # SQL toolkit and Object-Relational Mapping (ORM)
 # Version: 1.4.25

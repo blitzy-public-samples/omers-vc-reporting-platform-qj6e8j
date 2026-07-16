@@ -13,7 +13,7 @@ pytest==6.2.4
 httpx==0.27.0
 
 # Additional dependencies for the service
-fastapi==0.109.1  # FastAPI framework for building APIs
+fastapi==0.125.0  # FastAPI framework for building APIs
 uvicorn==0.15.0  # ASGI server for running FastAPI applications
-python-dotenv==1.0.1  # For loading environment variables from .env files
+python-dotenv==1.2.2  # For loading environment variables from .env files
 loguru==0.5.3  # For enhanced logging capabilities
