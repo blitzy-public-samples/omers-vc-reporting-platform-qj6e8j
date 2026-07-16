@@ -4,12 +4,12 @@
 sqlalchemy==1.4.22
 
 # Pydantic is used for data validation and settings management within the configuration file and data models.
-pydantic==1.8.2
+pydantic==1.10.13
 
 # Pytest is used for writing and executing unit tests.
 pytest==6.2.4
 
 # HTTPX is used for making HTTP requests in tests to simulate client interactions with the API.
-httpx==0.18.2
+httpx==0.27.0
 
 # Additional dependencies can be added here as needed for the Metrics Input Service.
