@@ -2,7 +2,8 @@
 azure-functions==1.15.0  # Latest version as of the time of writing
 
 # HTTP requests library
-requests==2.32.4  # Latest stable version
+requests==2.34.2  # Latest stable version
+urllib3==2.7.0  # Pinned patched transitive dependency
 
 # Data manipulation and analysis
 pandas==2.0.3  # Latest stable version
