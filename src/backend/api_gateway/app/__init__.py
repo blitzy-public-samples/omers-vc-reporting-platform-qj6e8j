@@ -51,6 +51,7 @@ def initialize_api_gateway() -> FastAPI:
     )
 
     # Configure CORS
+    # CORS allow-list (CWE-942)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

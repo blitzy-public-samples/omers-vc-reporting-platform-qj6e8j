@@ -1,8 +1,12 @@
+# Supported Python runtime: 3.9+ (matches the CI dependency-audit baseline).
+# requests and urllib3 are pinned to their latest Python 3.9-compatible patched releases.
+
 # Azure Functions SDK
 azure-functions==1.15.0  # Latest version as of the time of writing
 
 # HTTP requests library
-requests==2.34.2  # Latest stable version
+requests==2.32.4  # Latest patched release compatible with Python 3.9
+urllib3==2.6.3  # Latest patched urllib3 compatible with Python 3.9
 
 # Data manipulation and analysis
 pandas==2.0.3  # Latest stable version

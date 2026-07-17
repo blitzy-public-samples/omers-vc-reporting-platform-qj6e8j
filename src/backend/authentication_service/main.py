@@ -11,6 +11,7 @@ from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
+import logging
 
 # Import internal dependencies
 from src.backend.authentication_service.config import load_config
@@ -25,6 +26,12 @@ from src.backend.authentication_service.app.security import (
 
 # FastAPI version: 0.68.1
 # Uvicorn version: 0.15.0
+
+# Structured security-event logging (FR-8.5 / FR-10.6): configure the root
+# handler so security records carry timestamp, level, and logger name instead
+# of the bare last-resort format. force=True guarantees this format even if an
+# imported module already configured root logging.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s", force=True)
 
 def create_app() -> FastAPI:
     """
