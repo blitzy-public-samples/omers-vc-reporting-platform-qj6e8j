@@ -92,8 +92,13 @@ stages:
   # because an upstream stage failed.
   dependsOn: []
   jobs:
-  - job: DependencyScan
-    displayName: Scan Python dependencies with pip-audit
+  # The five backend services are frozen on the Python 3.9 baseline, while the
+  # data_transformation function app deploys on Python 3.11 (see
+  # infrastructure/terraform/main.tf). Each group is therefore audited on its own
+  # runtime so the gate enforces every fix that is installable on that runtime.
+  # Full rationale: security decision log.
+  - job: BackendDependencyScan
+    displayName: Scan Python 3.9 backend dependencies with pip-audit
     steps:
     - task: UsePythonVersion@0
       inputs:
@@ -105,28 +110,27 @@ stages:
         # Pin pip-audit for reproducible, deterministic scans (CWE-1104).
         pip install pip-audit==2.9.0
 
-        # Each manifest is audited on its own. The six services pin mutually
-        # incompatible versions (e.g. pytest 6.2.4 vs 6.2.5, SQLAlchemy 1.4.22 vs
-        # 1.4.25), so a single combined resolution is impossible; per-manifest
-        # invocation resolves and audits each service's full dependency tree
-        # (transitive packages included).
+        # Each manifest is audited on its own. The five backend services pin
+        # mutually incompatible versions (e.g. pytest 6.2.4 vs 6.2.5, SQLAlchemy
+        # 1.4.22 vs 1.4.25), so a single combined resolution is impossible;
+        # per-manifest invocation resolves and audits each service's full
+        # dependency tree (transitive packages included).
         MANIFESTS="\
           src/backend/api_gateway/requirements.txt \
           src/backend/authentication_service/requirements.txt \
           src/backend/metrics_input_service/requirements.txt \
           src/backend/reporting_financials_service/requirements.txt \
-          src/backend/reporting_metrics_service/requirements.txt \
-          src/functions/data_transformation/requirements.txt"
+          src/backend/reporting_metrics_service/requirements.txt"
 
         # Advisories suppressed below are the only findings whose fix would breach
-        # this platform's frozen compatibility envelope (Python 3.9 baseline;
+        # these backends' frozen compatibility envelope (Python 3.9 baseline;
         # Pydantic v1 via FastAPI < 0.126) or are AAP-deferred. Any NEW or
         # non-listed advisory fails the gate. Full rationale: security decision log.
         IGNORES=""
         # AAP-deferred dev/test toolchain advisories:
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-1845"   # pytest: fix 9.0.3 requires Python >= 3.10
         IGNORES="$IGNORES --ignore-vuln PYSEC-2022-14"     # loguru: Windows-only advisory
-        # Fix requires Python >= 3.10 (platform baseline is 3.9):
+        # Fix requires Python >= 3.10 (backend baseline is 3.9):
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2270"   # python-dotenv: fix 1.2.2 needs py >= 3.10
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2275"   # requests: fix 2.33.0 needs py >= 3.10
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-141"    # urllib3: fix 2.7.0 needs py >= 3.10
@@ -151,11 +155,37 @@ stages:
         done
 
         if [ "$status" -ne 0 ]; then
-          echo "Dependency vulnerability scan FAILED - unignored advisories present (see above)."
+          echo "Backend dependency vulnerability scan FAILED - unignored advisories present (see above)."
           exit 1
         fi
-        echo "Dependency vulnerability scan PASSED for all manifests."
-      displayName: 'Run pip-audit dependency vulnerability scan'
+        echo "Backend dependency vulnerability scan PASSED for all backend manifests."
+      displayName: 'Run pip-audit on the Python 3.9 backend manifests'
+      workingDirectory: $(Build.SourcesDirectory)
+
+  - job: FunctionDependencyScan
+    displayName: Scan Python 3.11 data_transformation dependencies with pip-audit
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.11'
+        addToPath: true
+    - script: |
+        set -u
+        python -m pip install --upgrade pip
+        # Pin pip-audit for reproducible, deterministic scans (CWE-1104).
+        pip install pip-audit==2.9.0
+
+        # The data_transformation function deploys on Python 3.11 (see
+        # infrastructure/terraform/main.tf), where the patched requests/urllib3
+        # (which require Python >= 3.10) are installable. No requests/urllib3
+        # ignores apply here, so the gate enforces those fixes for this manifest.
+        if ! pip-audit -r src/functions/data_transformation/requirements.txt --progress-spinner off; then
+          echo "##vso[task.logissue type=error]pip-audit found vulnerabilities in src/functions/data_transformation/requirements.txt"
+          echo "Function dependency vulnerability scan FAILED - advisories present (see above)."
+          exit 1
+        fi
+        echo "Function dependency vulnerability scan PASSED for data_transformation."
+      displayName: 'Run pip-audit on the Python 3.11 data_transformation manifest'
       workingDirectory: $(Build.SourcesDirectory)
 
 - stage: Deploy

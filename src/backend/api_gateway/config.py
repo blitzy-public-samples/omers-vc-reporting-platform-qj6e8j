@@ -30,8 +30,8 @@ class Settings(BaseSettings):
     # API key for authentication
     api_key: str = Field(..., env='API_KEY')
 
-    # Secret key for JWT token encoding/decoding
-    secret_key: str = Field(..., env='SECRET_KEY')
+    # Secret key for JWT token encoding/decoding (CWE-798/CWE-259: min length 32)
+    secret_key: str = Field(..., min_length=32, env='SECRET_KEY')
 
     # CORS allow-list (CWE-942): explicit non-wildcard origins from CORS_ALLOW_ORIGINS
     cors_origins: Union[str, List[str]] = Field(default_factory=lambda: ["http://localhost:3000"], env='CORS_ALLOW_ORIGINS')
