@@ -8,17 +8,17 @@ The Reporting Financials Service is a critical component of the OMERS Ventures b
 
 - Retrieval of currency-adjusted financial metrics
 - Support for multiple currencies (Local, USD, CAD)
-- Integration with Azure Active Directory for authentication
-- Role-Based Access Control (RBAC) for authorization
+- CORS hardening: an explicit, non-wildcard origin allow-list (CWE-942)
 - Scalable and performant API design
 
 ## Requirements
 
-- Python 3.8+
-- FastAPI 0.68.0
+Versions below reflect this service's pinned `requirements.txt` and its container base image (`python:3.9-slim`).
+
+- Python 3.9 (container base `python:3.9-slim`)
+- FastAPI 0.125.0
 - SQLAlchemy 1.4.22
-- Pydantic 1.8.2
-- Azure SDK for Python
+- Pydantic 1.10.13 (v1 line — `BaseSettings`)
 - Docker (for containerization)
 
 ## Setup and Installation
@@ -57,12 +57,13 @@ The Reporting Financials Service is a critical component of the OMERS Ventures b
    **Required environment variables (security):**
    - `JWT_SECRET_KEY`: **required**, supplied from the environment (no built-in default) and must be **at least 32 characters**. The service fails to start if it is missing or shorter than 32 characters.
    - `CORS_ORIGINS`: comma-separated list of explicitly allowed browser origins; **must not be `*`**. Declare the real origins for each environment before deploying to a browser-facing environment (example: `CORS_ORIGINS=http://localhost:3000`).
-   - `DATABASE_URL`: required PostgreSQL connection string.
+   - `DATABASE_URL`: **required** PostgreSQL connection string; it is typed as a Pydantic `PostgresDsn`, so it must be a valid `postgresql://user:pass@host:port/db` URL.
 
 5. Run the application:
    ```bash
    uvicorn main:app --reload
    ```
+   > **Known limitation:** the application currently fails to import at startup because of a pre-existing, out-of-scope defect (`app/routers/financials.py` reads `Config.DATABASE_URL` as a class attribute, which is invalid under Pydantic v1). This is a documented follow-up (see the root [`SECURITY.md`](../../../SECURITY.md)); the security configuration and CORS controls are still validated by the service's test suites.
 
 ## Docker Deployment
 
@@ -86,7 +87,7 @@ For detailed API documentation, visit `/docs` when the service is running.
 
 ## Authentication and Authorization
 
-This service uses OAuth 2.0 with Azure Active Directory for authentication. Ensure you have the necessary Azure AD configurations set up and the correct permissions to access the API.
+The service's routes currently declare no authentication dependency (they use only a database-session dependency); access control is expected to be provided by the API gateway / network boundary in front of the service. A JWT signing key (`JWT_SECRET_KEY`) is required as configuration, but Azure Active Directory integration and role-based access control are **not** implemented here and are documented follow-ups (see the root [`SECURITY.md`](../../../SECURITY.md)).
 
 ## Testing
 

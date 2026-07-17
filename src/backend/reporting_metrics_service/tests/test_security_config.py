@@ -12,8 +12,19 @@ These tests fail if the required-secret / minimum-length / required-DSN controls
 remediation.
 """
 
+import os
+
 import pydantic
 import pytest
+
+# config.py builds a module-level ``settings = Settings()`` at import time and requires
+# these values, so they must exist before importing the config module. setdefault keeps
+# an externally supplied value (e.g. CI); BACKEND_CORS_ORIGINS is removed so the shipped
+# default is used at import (each case sets its own via init kwargs) and to avoid a
+# Pydantic complex-field env JSON-parse error on a non-JSON ambient value.
+os.environ.setdefault("SECRET_KEY", "test-secret-key-thirty-two-chars-min-000")
+os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
+os.environ.pop("BACKEND_CORS_ORIGINS", None)
 
 from src.backend.reporting_metrics_service.config import Settings
 
@@ -74,3 +85,58 @@ def test_database_url_non_postgres_rejected(monkeypatch):
     monkeypatch.setenv("SECRET_KEY", "x" * MIN_SECRET_LEN)
     with pytest.raises(pydantic.ValidationError):
         _make_settings(DATABASE_URL="sqlite:///./test.db")
+
+
+def test_database_url_bare_postgres_scheme_rejected(monkeypatch):
+    # MJ-03: the bare 'postgres://' scheme is not supported by the SQLAlchemy/databases
+    # consumer; only 'postgresql://' (or 'postgresql+driver://') is accepted (fail closed).
+    monkeypatch.setenv("SECRET_KEY", "x" * MIN_SECRET_LEN)
+    with pytest.raises(pydantic.ValidationError):
+        _make_settings(DATABASE_URL="postgres://user:pass@localhost:5432/db")
+
+
+def test_database_url_postgresql_driver_scheme_accepted(monkeypatch):
+    # A 'postgresql+asyncpg://' DSN is a supported SQLAlchemy/databases scheme.
+    monkeypatch.setenv("SECRET_KEY", "x" * MIN_SECRET_LEN)
+    dsn = "postgresql+asyncpg://user:pass@localhost:5432/db"
+    cfg = _make_settings(DATABASE_URL=dsn)
+    assert cfg.DATABASE_URL == dsn
+
+
+# --- CORS allow-list fail-close boundaries (CWE-942, CR-16 fail-closed validator) --
+
+def test_backend_cors_default_not_wildcard():
+    # The shipped default allow-list must be explicit and never contain "*".
+    cfg = _make_settings(SECRET_KEY="x" * MIN_SECRET_LEN, DATABASE_URL=_VALID_DB_URL)
+    assert "*" not in cfg.BACKEND_CORS_ORIGINS
+    assert len(cfg.BACKEND_CORS_ORIGINS) >= 1
+
+
+def test_backend_cors_wildcard_rejected():
+    # A wildcard-only allow-list must fail closed rather than be silently accepted.
+    with pytest.raises(pydantic.ValidationError):
+        _make_settings(
+            SECRET_KEY="x" * MIN_SECRET_LEN,
+            DATABASE_URL=_VALID_DB_URL,
+            BACKEND_CORS_ORIGINS=["*"],
+        )
+
+
+def test_backend_cors_empty_rejected():
+    # An empty allow-list must fail closed.
+    with pytest.raises(pydantic.ValidationError):
+        _make_settings(
+            SECRET_KEY="x" * MIN_SECRET_LEN,
+            DATABASE_URL=_VALID_DB_URL,
+            BACKEND_CORS_ORIGINS=[],
+        )
+
+
+def test_backend_cors_explicit_allowlist_accepted():
+    cfg = _make_settings(
+        SECRET_KEY="x" * MIN_SECRET_LEN,
+        DATABASE_URL=_VALID_DB_URL,
+        BACKEND_CORS_ORIGINS=["https://app.example.com"],
+    )
+    assert cfg.BACKEND_CORS_ORIGINS == ["https://app.example.com"]
+    assert "*" not in cfg.BACKEND_CORS_ORIGINS

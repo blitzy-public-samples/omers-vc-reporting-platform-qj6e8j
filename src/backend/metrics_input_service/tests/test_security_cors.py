@@ -4,66 +4,38 @@ Security control verified: Cross-Origin Resource Sharing (CWE-942, Overly
 Permissive CORS). The service's configured CORS allow-list must never contain the
 wildcard ``*``, must reject empty or malformed origin lists (fail closed), and must
 accept only explicit http(s) origins. The control under test is the ``CORS_ORIGINS``
-validator on ``config.Settings`` (and the shipped default it produces).
+validator on ``config.Settings`` (and the shipped default it produces), which the
+service's ``main.create_app`` passes to ``CORSMiddleware``.
 
-Isolation note: the service application package has a pre-existing, out-of-scope
-import defect (``app/__init__.py`` contains a stray Markdown fence that raises
-``SyntaxError``), and ``config.py`` imports that application chain at module scope.
-The broken application submodules are therefore stubbed in ``sys.modules`` only for
-the duration of the ``config`` import and are removed immediately afterwards, so this
-test never masks the real (broken) application import for any other module in the
-session. Rationale detail lives in ``docs/security/decision-log.md``.
+``config.py`` imports cleanly on its own (it no longer pulls the application package),
+so ``Settings`` is imported directly here rather than through any stub -- the real
+production validator is exercised. Binding to the real ``main.create_app`` middleware
+is attempted in ``test_real_app_*`` below; the application package has a pre-existing,
+out-of-scope defect (``app/__init__.py`` contains a stray Markdown fence that raises
+``SyntaxError``) that ``main.py`` imports at module scope. Per AAP 0.8.2 that
+pre-existing non-security defect is not fixed here, so the real-factory test is marked
+``xfail`` to keep the blocker visible rather than masking it behind a stub. Rationale
+detail lives in ``docs/security/decision-log.md``.
 """
 
 import os
-import sys
-import types
 
 import pytest
 from pydantic import ValidationError
 
 # config.py constructs a module-level ``settings = load_settings()`` at import time,
-# which requires these non-security fields. They are provisioned with setdefault so an
-# externally supplied value (e.g. from CI) is preserved.
+# which requires these non-security fields; supplied with setdefault so an externally
+# supplied value (e.g. CI) is preserved.
 os.environ.setdefault("database_url", "postgresql://user:pass@localhost:5432/testdb")
 os.environ.setdefault("api_key", "test-api-key")
 os.environ.setdefault("log_level", "INFO")
+# The module-level ``settings`` must reflect the shipped default allow-list under test,
+# so any ambient CORS_ORIGINS is removed before import (each case sets its own value via
+# init kwargs). This also avoids a Pydantic complex-field env JSON-parse error if an
+# ambient value is not the documented JSON-array form (see .env.sample).
+os.environ.pop("CORS_ORIGINS", None)
 
-# Leaf application modules imported by config.py (lines 73-74). app/__init__.py has a
-# pre-existing SyntaxError, so these are stubbed only around the config import.
-_STUB_MODULES = {
-    "src.backend.metrics_input_service.app": {},
-    "src.backend.metrics_input_service.app.models": {},
-    "src.backend.metrics_input_service.app.models.models": {"MetricsInput": object},
-    "src.backend.metrics_input_service.app.routers": {},
-    "src.backend.metrics_input_service.app.routers.metrics": {"router": object()},
-}
-
-
-def _import_settings_isolated():
-    """Import ``config.Settings`` without executing the broken application package.
-
-    Stubs the leaf application modules that ``config`` imports, performs the import,
-    then removes exactly the stubs it added so a later import of the real application
-    (e.g. by ``test_metrics.py``) still fails loudly rather than resolving a stub.
-    """
-    added = []
-    for name, attrs in _STUB_MODULES.items():
-        if name not in sys.modules:
-            module = types.ModuleType(name)
-            for attr, value in attrs.items():
-                setattr(module, attr, value)
-            sys.modules[name] = module
-            added.append(name)
-    try:
-        from src.backend.metrics_input_service.config import Settings
-        return Settings
-    finally:
-        for name in added:
-            sys.modules.pop(name, None)
-
-
-Settings = _import_settings_isolated()
+from src.backend.metrics_input_service.config import Settings
 
 # Non-security fields required by Settings, supplied explicitly so construction is
 # independent of the process environment.
@@ -78,7 +50,8 @@ def _make_settings(**overrides):
     """Construct Settings with required fields supplied and .env reading disabled.
 
     Init kwargs take precedence over the environment in Pydantic v1, so any
-    ``CORS_ORIGINS`` override passed here is deterministic regardless of ambient env.
+    ``CORS_ORIGINS`` override passed here is deterministic regardless of ambient env
+    and runs through the real production validator.
     """
     params = dict(_REQUIRED_FIELDS)
     params.update(overrides)
@@ -124,6 +97,12 @@ def test_malformed_origin_rejected():
         _make_settings(CORS_ORIGINS=["not-a-url"])
 
 
+def test_origin_with_credentials_rejected():
+    # An origin carrying userinfo is not a bare serialized origin and must be rejected.
+    with pytest.raises(ValidationError):
+        _make_settings(CORS_ORIGINS=["http://user:pass@host"])
+
+
 def test_explicit_allowlist_accepted():
     # An explicit http(s) allow-list is accepted and never contains "*".
     settings = _make_settings(CORS_ORIGINS=["https://app.example.com"])
@@ -136,3 +115,28 @@ def test_shipped_settings_default_not_wildcard():
     from src.backend.metrics_input_service.config import settings as shipped_settings
     assert "*" not in shipped_settings.CORS_ORIGINS
     assert len(shipped_settings.CORS_ORIGINS) >= 1
+
+
+# --- Real application factory: middleware wiring (visible pre-existing blocker) ----
+
+@pytest.mark.xfail(
+    reason=(
+        "Pre-existing out-of-scope defect (AAP 0.8.2): "
+        "app/__init__.py contains a stray Markdown fence that raises SyntaxError, and "
+        "main.py imports that package at module scope, so main.create_app cannot be "
+        "imported. Kept visible as xfail; see docs/security/decision-log.md."
+    ),
+    strict=False,
+    raises=Exception,
+)
+def test_real_app_cors_never_wildcard_with_credentials():
+    """The real app must reflect only configured origins, never '*' with credentials."""
+    from fastapi.testclient import TestClient
+
+    from src.backend.metrics_input_service.main import create_app
+
+    client = TestClient(create_app())
+    resp = client.get("/", headers={"Origin": "http://evil.example.com"})
+    acao = resp.headers.get("access-control-allow-origin")
+    assert acao != "*"
+    assert acao != "http://evil.example.com"

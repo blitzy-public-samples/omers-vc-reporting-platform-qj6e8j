@@ -108,7 +108,16 @@ Ensure you have the necessary permissions and environment variables set before r
 
 ### Database Administrator Password (Provisioned at Apply Time)
 
-The PostgreSQL administrator password is no longer stored in the Terraform configuration; it must be supplied at apply time through the sensitive Terraform variable `postgresql_admin_password` (declared in `variables.tf`). Provide it as a secure pipeline secret — for example via the `backend-secrets` variable group referenced in `azure-pipelines.yml`, or as a `TF_VAR_postgresql_admin_password` environment variable that Terraform reads automatically — so that it is never committed to source control. This is a one-time deployment-coordination step required before running `terraform apply`.
+The PostgreSQL administrator password is no longer stored in the Terraform configuration; it must be supplied at apply time through the sensitive Terraform variable `postgresql_admin_password` (declared in `variables.tf`). The password is never committed to source control.
+
+Supply it to Terraform by exporting a `TF_VAR_postgresql_admin_password` environment variable in the environment where `terraform apply` runs — Terraform reads any `TF_VAR_*` variable automatically. The `scripts/deploy.sh` helper, which runs `terraform init/plan/apply` manually, will pick the value up from that environment variable (its `terraform plan -var-file=variables.tf` invocation does not itself carry the secret). For example:
+
+```bash
+export TF_VAR_postgresql_admin_password="$(read-from-secure-store)"   # never echo or log this value
+./scripts/deploy.sh
+```
+
+**Masked-secret → `TF_VAR` mapping status (deployment follow-up, not yet wired):** `azure-pipelines.yml` links the `backend-secrets` variable group at the pipeline level, so a masked secret named in that group is available to pipeline jobs as an environment variable. However, the pipeline's `Deploy` stage currently ships the application to AKS via the `Kubernetes@1` task and does **not** invoke Terraform, and `deploy.sh` is not driven from the pipeline. Consequently, no job today maps a masked `backend-secrets` entry into `TF_VAR_postgresql_admin_password`. Adding a Terraform-apply job (or a `deploy.sh` invocation) that maps the masked variable to `TF_VAR_postgresql_admin_password` is a documented deployment-coordination follow-up and belongs to separately-authorized deploy/pipeline work; it is intentionally out of scope for this security remediation, which only removes the plaintext credential from source. This one-time provisioning step is required before running `terraform apply`.
 
 ## Monitoring and Maintenance
 

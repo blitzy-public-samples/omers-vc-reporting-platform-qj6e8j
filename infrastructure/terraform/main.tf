@@ -125,14 +125,14 @@ resource "azurerm_function_app" "function_app" {
   storage_account_name       = azurerm_storage_account.storage.name
   storage_account_access_key = azurerm_storage_account.storage.primary_access_key
   os_type                    = "linux"
-  version                    = "~4" # Functions runtime v4 (v3 host is end-of-life)
+  version                    = "~3"
 
   app_settings = {
     FUNCTIONS_WORKER_RUNTIME = "python"
   }
 
   site_config {
-    linux_fx_version = "PYTHON|3.11" # Python 3.9 is end-of-life; 3.11 required for patched requests/urllib3
+    linux_fx_version = "PYTHON|3.9"
   }
 
   tags = {

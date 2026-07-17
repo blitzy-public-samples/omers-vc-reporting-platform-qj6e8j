@@ -19,16 +19,33 @@ load_dotenv()
 
 
 def _validate_cors_origins(origins):
-    """Reject wildcard, empty, or malformed CORS origins (CWE-942); require http(s) scheme and host."""
-    from urllib.parse import urlparse
+    """Reject wildcard, empty, or malformed CORS origins (CWE-942).
+
+    Each entry must be a serialized origin: an http(s) scheme and host with an
+    optional valid port and no credentials, path, query, or fragment.
+    """
+    from urllib.parse import urlsplit
     if not origins:
         raise ValueError("CORS origins must be a non-empty explicit allow-list; wildcard '*' is not permitted.")
     for origin in origins:
         if origin == '*':
             raise ValueError("Wildcard '*' CORS origin is not permitted with credentials (CWE-942).")
-        parsed = urlparse(origin)
-        if not (parsed.scheme in ('http', 'https') and parsed.netloc):
-            raise ValueError(f"Invalid CORS origin URL: {origin}")
+        parts = urlsplit(origin)
+        try:
+            parts.port  # accessing an invalid port raises ValueError
+        except ValueError:
+            raise ValueError(f"Invalid CORS origin (bad port): {origin}")
+        if (parts.scheme not in ('http', 'https')
+                or not parts.hostname
+                or parts.username is not None
+                or parts.password is not None
+                or parts.path
+                or parts.query
+                or parts.fragment):
+            raise ValueError(
+                f"Invalid CORS origin (expected scheme://host[:port] with no "
+                f"credentials/path/query/fragment): {origin}"
+            )
     return origins
 
 
@@ -57,11 +74,8 @@ def load_config():
         if not config[setting]:
             raise ValueError(f"Missing required configuration setting: {setting}")
 
-    # CWE-942: reject a wildcard origin. A '*' allow-list combined with the
-    # credentialed CORS middleware would expose credentialed cross-origin access.
-    if '*' in config['CORS_ORIGINS']:
-        raise ValueError("CORS_ORIGINS must not contain '*' (wildcard) when credentials are enabled")
-
+    # CORS origins (including wildcard rejection) are validated by
+    # _validate_cors_origins when the list is built above (CWE-942).
     return config
 
 # Global configuration variables

@@ -7,20 +7,20 @@
   <meta name="description" content="Executive summary of the OMERS Ventures Backend Platform security-remediation engagement: a multi-layer, minimal-change fix across vulnerable dependencies, permissive CORS, weak fallback secrets, a hard-coded Terraform database credential, and container hardening.">
   <meta name="author" content="Blitzy">
   <!--
-    Self-contained reveal.js-style executive deck. ALL CSS and JavaScript are
-    embedded inline; there are NO external asset fetches (no third-party hosts,
-    no downloaded typefaces, no external stylesheet or script references).
-    Open by double-clicking in any modern browser.
-    The compact slide engine below is an original, dependency-free controller
-    that mirrors the reveal.js DOM contract (.reveal > .slides > section) and
-    the reveal.js navigation/fragment UX. See the attribution note in the
-    script block at the end of the body.
+    Single-file executive deck. ALL CSS and JavaScript are embedded inline and
+    there are NO external asset fetches (no third-party hosts, no downloaded
+    typefaces, no external stylesheet or script references). Open by double-
+    clicking in any modern browser.
+
+    The Blitzy brand theme below is embedded in full so the deck is entirely
+    self-contained. The compact slide engine in the script block is original,
+    dependency-free code that mirrors the reveal.js DOM contract
+    (.reveal > .slides > section) and navigation/fragment UX; the reveal.js
+    attribution is provided in that script block.
   -->
   <style>
     /* =====================================================================
-       Blitzy brand theme (inline stand-in for the external, non-retrievable
-       blitzy-deck/references/blitzy-reveal-theme.css). Sleek, dark,
-       enterprise-grade. All values are concrete per the deck specification.
+       Blitzy brand theme — embedded inline (self-contained, enterprise dark).
        ===================================================================== */
     :root {
       /* Base surfaces */
@@ -57,6 +57,8 @@
       --radius-sm: 9px;
       --gap: clamp(10px, 1.6vh, 22px);
       --pad: clamp(20px, 4.2vw, 72px);
+      /* Bottom room reserved on every slide so fixed chrome never overlaps content. */
+      --chrome-space: clamp(72px, 12vh, 100px);
     }
 
     * { box-sizing: border-box; }
@@ -72,6 +74,17 @@
       -webkit-font-smoothing: antialiased;
       text-rendering: optimizeLegibility;
       overflow: hidden;
+    }
+
+    /* Screen-reader-only utility (visually hidden, still announced). */
+    .sr-only {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0 0 0 0);
+      white-space: nowrap;
+      border: 0;
     }
 
     /* The reveal root fills the viewport and carries the depth gradient. */
@@ -94,13 +107,14 @@
     }
 
     /* ---- Slide box -------------------------------------------------------
-       Each top-level <section> is one horizontal slide. In the JS-enabled
-       presentation mode only the .present slide is displayed; without JS all
-       slides stack and remain readable (graceful degradation). */
+       Each top-level <section> is one horizontal slide. In JS presentation
+       mode only the .present slide is displayed; without JS all slides stack
+       and remain readable (graceful degradation). Bottom padding reserves
+       room for the fixed on-screen chrome so controls never cover content. */
     .reveal .slides > section {
       width: min(1180px, 92vw);
       max-height: 92vh;
-      padding: clamp(18px, 3vh, 40px) var(--pad);
+      padding: clamp(18px, 3vh, 40px) var(--pad) calc(clamp(18px, 3vh, 40px) + var(--chrome-space));
       overflow: auto;
       scrollbar-width: thin;
       scrollbar-color: var(--border) transparent;
@@ -108,7 +122,8 @@
     .reveal .slides > section::-webkit-scrollbar { width: 8px; height: 8px; }
     .reveal .slides > section::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
 
-    /* JS-enabled single-slide mode. */
+    /* JS-enabled single-slide mode. visibility:hidden also removes inactive
+       slides from the accessibility tree and tab order. */
     html.js .reveal .slides > section {
       position: absolute;
       left: 50%;
@@ -125,6 +140,10 @@
       transform: translate(-50%, -50%) scale(1);
       pointer-events: auto;
     }
+    /* The focus target heading should not paint a distracting outline box. */
+    html.js .reveal .slides > section:focus { outline: none; }
+    html.js .reveal .slides > section h1:focus,
+    html.js .reveal .slides > section h2:focus { outline: none; }
 
     /* No-JS fallback: stack slides vertically, all visible and scrollable. */
     html.no-js body { overflow: auto; }
@@ -134,6 +153,7 @@
       width: min(1180px, 92vw);
       margin: 24px auto;
       max-height: none;
+      padding-bottom: clamp(18px, 3vh, 40px);
       border-bottom: 1px solid var(--border);
     }
 
@@ -214,6 +234,8 @@
       box-shadow: 0 0 0 4px rgba(59,130,246,0.12);
     }
     ul li strong { color: var(--text); }
+    ul.tight li { padding-top: 0.22em; padding-bottom: 0.22em; font-size: clamp(15px, 1.7vw, 21px); }
+    ul li .sev-inline-pill { margin-left: 0.35em; }
 
     /* =====================================================================
        Blitzy wordmark — pure HTML/CSS text lockup (no image is fetched).
@@ -259,7 +281,7 @@
       margin-bottom: 0.4em;
     }
     .card h3 { font-size: clamp(16px, 1.85vw, 22px); margin-bottom: 0.2em; }
-    .card p { font-size: clamp(13px, 1.5vw, 18px); color: var(--muted); margin: 0; }
+    .card p { font-size: clamp(14px, 1.5vw, 18px); color: var(--muted); margin: 0; }
 
     /* KPI callouts */
     .kpis { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); margin-top: var(--gap); }
@@ -284,25 +306,35 @@
     .kpi .label {
       margin-top: 0.5em;
       color: var(--muted);
-      font-size: clamp(12px, 1.45vw, 17px);
+      font-size: clamp(13px, 1.45vw, 17px);
       line-height: 1.3;
     }
 
     /* =====================================================================
-       Tables (slides 4 & 5)
+       Tables (slides 4 & 5) — horizontally scrollable on narrow viewports so
+       columns never clip; a readable minimum type size is always maintained.
        ===================================================================== */
     .table-wrap {
       margin-top: var(--gap);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      overflow: hidden;
+      overflow-x: auto;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
     }
     table {
       width: 100%;
+      min-width: 560px;              /* keeps columns legible; wrapper scrolls if narrower */
       border-collapse: collapse;
-      font-size: clamp(13px, 1.55vw, 20px);
+      font-size: clamp(14px, 1.55vw, 20px);
     }
-    caption { text-align: left; }
+    caption {
+      text-align: left;
+      color: var(--muted);
+      font-size: clamp(13px, 1.5vw, 17px);
+      padding: clamp(8px, 1.1vw, 12px) clamp(11px, 1.5vw, 18px);
+      font-style: italic;
+    }
     thead th {
       text-align: left;
       background: linear-gradient(180deg, rgba(59,130,246,0.22), rgba(59,130,246,0.10));
@@ -313,15 +345,22 @@
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
+    tbody th[scope="row"] {
+      text-align: left;
+      font-weight: 700;
+      white-space: nowrap;
+      padding: clamp(8px, 1.2vw, 14px) clamp(11px, 1.5vw, 18px);
+      border-bottom: 1px solid var(--border);
+    }
     tbody td {
       padding: clamp(8px, 1.2vw, 14px) clamp(11px, 1.5vw, 18px);
       border-bottom: 1px solid var(--border);
       vertical-align: middle;
     }
-    tbody tr:last-child td { border-bottom: none; }
-    tbody tr:nth-child(odd) td { background: var(--surface); }
-    tbody tr:nth-child(even) td { background: var(--surface-2); }
-    td.layer, th.layer { font-weight: 700; white-space: nowrap; }
+    tbody tr:last-child td, tbody tr:last-child th { border-bottom: none; }
+    tbody tr:nth-child(odd) td, tbody tr:nth-child(odd) th[scope="row"] { background: var(--surface); }
+    tbody tr:nth-child(even) td, tbody tr:nth-child(even) th[scope="row"] { background: var(--surface-2); }
+    th.layer, td.layer { font-weight: 700; white-space: nowrap; }
     /* Before / after tinted cells. */
     td.before {
       background: rgba(229,72,77,0.14) !important;
@@ -337,18 +376,19 @@
     .arrow { color: var(--accent); font-weight: 700; padding: 0 0.15em; }
     .footnote {
       margin-top: 0.7em;
-      font-size: clamp(12px, 1.4vw, 16px);
+      font-size: clamp(13px, 1.4vw, 16px);
       color: var(--muted);
     }
 
     /* =====================================================================
-       Badges & severity pills
+       Badges & severity pills — absolute minimum size so they never shrink to
+       an illegible value on small screens.
        ===================================================================== */
     .badge {
       display: inline-block;
       padding: 2px 11px;
       border-radius: 999px;
-      font-size: 0.82em;
+      font-size: clamp(12px, 1.35vw, 14px);
       font-weight: 700;
       letter-spacing: 0.02em;
       border: 1px solid var(--border);
@@ -381,14 +421,11 @@
     }
     section.title .support {
       color: var(--muted);
-      font-size: clamp(14px, 1.8vw, 22px);
+      font-size: clamp(15px, 1.8vw, 22px);
       margin-bottom: clamp(18px, 4vh, 42px);
     }
-    .sev-inline {
-      color: var(--critical);
-      font-weight: 700;
-    }
-    section.title .tagline { color: var(--muted); font-size: clamp(12px, 1.5vw, 17px); letter-spacing: 0.04em; }
+    .sev-inline { color: var(--critical); font-weight: 700; }
+    section.title .tagline { color: var(--muted); font-size: clamp(13px, 1.5vw, 17px); letter-spacing: 0.04em; }
 
     .footer-mark {
       margin-top: clamp(16px, 3.4vh, 34px);
@@ -399,8 +436,12 @@
       justify-content: space-between;
       gap: var(--gap);
       color: var(--muted);
-      font-size: clamp(12px, 1.4vw, 16px);
+      font-size: clamp(13px, 1.4vw, 16px);
     }
+
+    /* Two-column grouping used on the residual/deferred slide. */
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); margin-top: var(--gap); }
+    .cols .col-head { color: var(--accent); font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; font-size: clamp(12px, 1.3vw, 15px); margin: 0 0 0.3em; }
 
     /* =====================================================================
        UI chrome — progress bar, slide counter, on-screen controls
@@ -475,7 +516,7 @@
       bottom: 14px;
       z-index: 40;
       color: var(--muted);
-      font-size: clamp(10px, 1.15vw, 13px);
+      font-size: clamp(11px, 1.15vw, 13px);
       opacity: 0.8;
     }
     .hint kbd {
@@ -515,8 +556,13 @@
        ===================================================================== */
     @media (max-width: 720px) {
       .footer-mark { flex-direction: column; align-items: flex-start; }
-      .controls { bottom: 52px; }
-      thead th, tbody td { font-size: 13px; }
+      .controls { bottom: 54px; }
+      .cols { grid-template-columns: 1fr; }
+      thead th, tbody td, tbody th[scope="row"] { font-size: 14px; }
+      caption { font-size: 13px; }
+      /* The keyboard hint is not useful on touch devices and would crowd the
+         bottom-left; hide it so it cannot overlap content or chrome. */
+      .hint { display: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       html.js .reveal .slides > section,
@@ -528,6 +574,10 @@
 <body>
   <!-- Fixed UI chrome (driven by the inline engine). -->
   <div class="reveal-progress" aria-hidden="true"><span id="progressBar"></span></div>
+
+  <!-- Polite live region: announces the active slide (number + heading) to
+       assistive technology on every slide change. -->
+  <div id="slideAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
   <div class="reveal">
     <div class="slides">
@@ -591,10 +641,11 @@
 
       <!-- ============ Slide 4 — Before -> After security posture ========== -->
       <section aria-label="Security posture before and after">
-        <div class="eyebrow">Mirrors AAP Diagram 0.4-A</div>
+        <div class="eyebrow">Mirrors AAP Diagram 0.4-A and SECURITY.md</div>
         <h2>Security Posture &mdash; Before &rarr; After</h2>
         <div class="table-wrap">
           <table>
+            <caption>Per-layer state discovered in the repository (Before) and the state delivered by this engagement (After).</caption>
             <thead>
               <tr>
                 <th class="layer" scope="col">Layer</th>
@@ -604,47 +655,48 @@
             </thead>
             <tbody>
               <tr>
-                <td class="layer">Dependencies</td>
+                <th class="layer" scope="row">Dependencies</th>
                 <td class="before">16 packages, 72 OSV advisories</td>
-                <td class="after">Patched pins, 0 advisories (Pydantic v1 kept)</td>
+                <td class="after">Patched pins; residual <span class="mono">starlette</span>/<span class="mono">click</span> advisories under documented CI waivers (Pydantic v1 kept)</td>
               </tr>
               <tr>
-                <td class="layer">CORS</td>
+                <th class="layer" scope="row">CORS</th>
                 <td class="before"><span class="mono">allow_origins=["*"]</span> + <span class="mono">allow_credentials=True</span></td>
                 <td class="after">Explicit origin allow-list (credentials only with real origins)</td>
               </tr>
               <tr>
-                <td class="layer">Secrets</td>
+                <th class="layer" scope="row">Secrets</th>
                 <td class="before"><span class="mono">"your-secret-key"</span> fallback defaults</td>
                 <td class="after">Required from environment, min length 32</td>
               </tr>
               <tr>
-                <td class="layer">IaC</td>
-                <td class="before">Plaintext DB password <span class="mono">H@Sh1CoR3!</span> in <span class="mono">main.tf</span></td>
-                <td class="after"><span class="mono">var.postgresql_admin_password</span> (no literal in source)</td>
+                <th class="layer" scope="row">IaC</th>
+                <td class="before">Plaintext DB admin password in <span class="mono">main.tf</span></td>
+                <td class="after"><span class="mono">var.postgresql_admin_password</span> (no literal in source; history purge is a follow-up)</td>
               </tr>
               <tr>
-                <td class="layer">Containers</td>
+                <th class="layer" scope="row">Containers</th>
                 <td class="before">Root user, <span class="mono">python:3.8-slim</span> (EOL)</td>
-                <td class="after">Non-root <span class="mono">USER</span>, supported base image</td>
+                <td class="after">Non-root <span class="mono">USER</span> (uid 1000), supported base image</td>
               </tr>
               <tr>
-                <td class="layer">CI/CD</td>
+                <th class="layer" scope="row">CI/CD</th>
                 <td class="before">No dependency scan</td>
-                <td class="after"><span class="mono">pip-audit</span> scan gate</td>
+                <td class="after"><span class="mono">pip-audit</span> scan gate (Build &rarr; Test &rarr; SecurityScan &rarr; Deploy)</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="footnote"><span style="color:var(--critical);font-weight:700;">Red</span> = vulnerable state discovered &middot; <span style="color:var(--low);font-weight:700;">Green</span> = remediated state.</p>
+        <p class="footnote"><span style="color:var(--critical);font-weight:700;">Red</span> = vulnerable state discovered &middot; <span style="color:var(--low);font-weight:700;">Green</span> = remediated state delivered.</p>
       </section>
 
       <!-- ==================== Slide 5 — Key CVEs remediated ================= -->
       <section aria-label="Key CVEs remediated">
-        <div class="eyebrow">Advisory-cleared dependency upgrades</div>
+        <div class="eyebrow">Advisory-cleared dependency upgrades (delivered pins)</div>
         <h2>Key CVEs Remediated</h2>
         <div class="table-wrap">
           <table>
+            <caption>Vulnerable pins raised to the delivered patched versions; severities and representative CVEs shown.</caption>
             <thead>
               <tr>
                 <th scope="col">Package</th>
@@ -655,43 +707,43 @@
             </thead>
             <tbody>
               <tr>
-                <td class="layer">cryptography</td>
-                <td><span class="mono">3.4.8</span> <span class="arrow">&rarr;</span> <span class="mono">44.0.1</span></td>
+                <th class="layer" scope="row">cryptography</th>
+                <td><span class="mono">3.4.8</span> <span class="arrow">&rarr;</span> <span class="mono">49.0.0</span></td>
                 <td><span class="badge sev-critical">Critical</span></td>
                 <td class="mono" style="white-space:normal;">CVE-2023-50782, CVE-2023-0286, CVE-2024-0727</td>
               </tr>
               <tr>
-                <td class="layer">gunicorn</td>
+                <th class="layer" scope="row">gunicorn</th>
                 <td><span class="mono">20.1.0</span> <span class="arrow">&rarr;</span> <span class="mono">23.0.0</span></td>
                 <td><span class="badge sev-high">High</span></td>
                 <td class="mono" style="white-space:normal;">CVE-2024-1135, CVE-2024-6827</td>
               </tr>
               <tr>
-                <td class="layer">PyJWT</td>
-                <td><span class="mono">2.3.0</span> <span class="arrow">&rarr;</span> <span class="mono">2.10.1</span></td>
+                <th class="layer" scope="row">PyJWT</th>
+                <td><span class="mono">2.3.0</span> <span class="arrow">&rarr;</span> <span class="mono">2.13.0</span></td>
                 <td><span class="badge sev-high">High</span></td>
                 <td class="mono" style="white-space:normal;">CVE-2022-29217</td>
               </tr>
               <tr>
-                <td class="layer">requests</td>
-                <td><span class="mono">2.26.0/2.27.1/2.31.0</span> <span class="arrow">&rarr;</span> <span class="mono">2.32.4</span></td>
+                <th class="layer" scope="row">requests</th>
+                <td><span class="mono">2.26.0/2.27.1/2.31.0</span> <span class="arrow">&rarr;</span> <span class="mono">2.34.2</span></td>
                 <td><span class="badge sev-high">High</span></td>
                 <td class="mono" style="white-space:normal;">CVE-2024-47081, CVE-2024-35195, CVE-2023-32681</td>
               </tr>
               <tr>
-                <td class="layer">fastapi</td>
-                <td><span class="mono">0.68.0/0.68.1</span> <span class="arrow">&rarr;</span> <span class="mono">0.109.1</span></td>
+                <th class="layer" scope="row">fastapi</th>
+                <td><span class="mono">0.68.0/0.68.1</span> <span class="arrow">&rarr;</span> <span class="mono">0.125.0</span></td>
                 <td><span class="badge sev-high">High</span></td>
                 <td class="mono" style="white-space:normal;">CVE-2024-24762</td>
               </tr>
               <tr>
-                <td class="layer">azure-identity</td>
+                <th class="layer" scope="row">azure-identity</th>
                 <td><span class="mono">1.7.0</span> <span class="arrow">&rarr;</span> <span class="mono">1.16.1</span></td>
                 <td><span class="badge sev-high">High</span></td>
                 <td class="mono" style="white-space:normal;">CVE-2024-35255</td>
               </tr>
               <tr>
-                <td class="layer">pydantic</td>
+                <th class="layer" scope="row">pydantic</th>
                 <td><span class="mono">1.8.2</span> <span class="arrow">&rarr;</span> <span class="mono">1.10.13</span></td>
                 <td><span class="badge sev-medium">Medium</span></td>
                 <td class="mono" style="white-space:normal;">CVE-2024-3772</td>
@@ -699,7 +751,7 @@
             </tbody>
           </table>
         </div>
-        <p class="footnote"><span class="mono">httpx</span> (test) 0.18.2 &rarr; 0.27.0 <span class="badge sev-medium">Medium</span> &middot; <span class="mono">python-dotenv</span> &rarr; 1.0.1 <span class="badge sev-low">Low</span></p>
+        <p class="footnote"><span class="mono">httpx</span> (test) 0.18.2 &rarr; 0.27.0 <span class="badge sev-medium">Medium</span> &middot; <span class="mono">python-dotenv</span> &rarr; 1.0.1 <span class="badge sev-low">Low</span> &middot; data-transformation function pins <span class="mono">requests</span> 2.33.0.</p>
       </section>
 
       <!-- ================= Slide 6 — Compatibility discipline ============== -->
@@ -707,11 +759,12 @@
         <div class="eyebrow">Backward compatibility preserved</div>
         <h2>Compatibility Discipline</h2>
         <ul>
-          <li class="fragment"><strong>Pydantic kept on the v1 line</strong> (1.10.13+) &mdash; the <span class="mono">BaseSettings</span> API is preserved; <strong>no</strong> Pydantic v2 migration.</li>
-          <li class="fragment"><strong>FastAPI capped <span class="mono">&lt; 0.126.0</span></strong> (pinned 0.109.1) &mdash; retains Pydantic v1 support while clearing CVE-2024-24762.</li>
-          <li class="fragment"><strong>Minimal Change Clause honored</strong> &mdash; version bumps only; <strong>no</strong> package replacements; <strong>no</strong> behavior or public-API contract changes.</li>
+          <li class="fragment"><strong>Pydantic kept on the v1 line</strong> (1.10.13) &mdash; the <span class="mono">BaseSettings</span> API is preserved; <strong>no</strong> Pydantic v2 migration.</li>
+          <li class="fragment"><strong>FastAPI capped <span class="mono">&lt; 0.126.0</span></strong> (pinned 0.125.0) &mdash; retains Pydantic v1 support while clearing CVE-2024-24762.</li>
+          <li class="fragment"><strong>Minimal Change Clause honored</strong> &mdash; version bumps only; <strong>no</strong> package replacements; <strong>no</strong> public-API contract changes.</li>
           <li class="fragment"><strong>No import statements changed</strong> &mdash; every upgrade stays within a compatible API line.</li>
         </ul>
+        <p class="caption fragment">Trade-off: because the FastAPI/Pydantic-v1 envelope is frozen, a small set of <span class="mono">starlette</span>/<span class="mono">click</span> advisories cannot be cleared without breaching it; these remain under documented CI waivers (see next slide).</p>
       </section>
 
       <!-- ====================== Slide 7 — Verification ===================== -->
@@ -719,27 +772,41 @@
         <div class="eyebrow">How the fix was proven</div>
         <h2>Verification</h2>
         <ul>
-          <li class="fragment"><strong>Dependency scan</strong> (<span class="mono">pip-audit</span>) expecting <strong>zero findings</strong> for the patched packages.</li>
-          <li class="fragment"><strong>CORS regression tests</strong> &mdash; never <span class="mono">Access-Control-Allow-Origin: *</span> together with credentials; only configured origins reflected; unlisted origins rejected.</li>
-          <li class="fragment"><strong>Secret-required configuration tests</strong> &mdash; <span class="mono">JWT_SECRET_KEY</span> / <span class="mono">SECRET_KEY</span> required and length-enforced; no <span class="mono">"your-secret-key"</span> default resolvable.</li>
-          <li class="fragment"><strong>Secret / IaC scan</strong> &mdash; no plaintext password literal remains; <span class="mono">terraform validate</span> passes.</li>
-          <li class="fragment"><strong>Container non-root check</strong> &mdash; runtime user id is non-zero.</li>
-          <li class="fragment"><strong>Full existing regression suite</strong> re-run across the service <span class="mono">tests/</span> directories.</li>
+          <li class="fragment"><strong>Dependency scan</strong> (<span class="mono">pip-audit</span>) &mdash; the CI gate passes when <strong>no un-waived advisory</strong> remains; within-envelope-unfixable <span class="mono">starlette</span>/<span class="mono">click</span> advisories carry documented <span class="mono">--ignore-vuln</span> waivers.</li>
+          <li class="fragment"><strong>CORS regression tests</strong> &mdash; never <span class="mono">Access-Control-Allow-Origin: *</span> together with credentials; only configured origins are reflected; unlisted origins are <strong>not</strong> reflected.</li>
+          <li class="fragment"><strong>Secret-required configuration tests</strong> &mdash; <span class="mono">JWT_SECRET_KEY</span> / <span class="mono">SECRET_KEY</span> required and length-enforced (min 32); no <span class="mono">"your-secret-key"</span> default resolvable.</li>
+          <li class="fragment"><strong>Secret / IaC scan</strong> &mdash; no plaintext password literal remains in source; the <span class="mono">main.tf</span> credential fix validates in isolation.</li>
+          <li class="fragment"><strong>Container non-root check</strong> &mdash; built images run as a non-zero uid (<span class="mono">id -u</span> &rarr; 1000).</li>
+          <li class="fragment"><strong>Regression suites re-run</strong> &mdash; the security suites pass; a few full-application suites do not yet collect because of pre-existing, documented blockers (see next slide).</li>
         </ul>
       </section>
 
-      <!-- =================== Slide 8 — Deferred follow-ups ================= -->
-      <section aria-label="Deferred follow-ups">
-        <div class="eyebrow">Transparency</div>
-        <h2>Deferred Follow-Ups</h2>
-        <p class="caption" style="margin-top:0;">Recorded, not fixed here &mdash; out of the minimal security-fix scope.</p>
-        <ul>
-          <li class="fragment"><span class="mono">pytest</span> (6.x &rarr; 9.x, test-only) and <span class="mono">loguru</span> upgrades.</li>
-          <li class="fragment">End-of-life <strong>PostgreSQL v11</strong> engine version.</li>
-          <li class="fragment">Hard-coded placeholder <strong>demo credentials</strong> rework (architectural).</li>
-          <li class="fragment"><strong>Broad observability build-out</strong> &mdash; distributed tracing, Prometheus metrics wiring, Application Insights.</li>
-          <li class="fragment">Introduce <strong>dependency lockfiles</strong>.</li>
-        </ul>
+      <!-- =============== Slide 8 — Residual risk & deferred follow-ups ===== -->
+      <section aria-label="Residual risk and deferred follow-ups">
+        <div class="eyebrow">Transparency &mdash; documented, not concealed</div>
+        <h2>Residual Risk &amp; Deferred Follow-Ups</h2>
+        <p class="caption" style="margin-top:0;">Full detail lives in <span class="mono">SECURITY.md</span> and <span class="mono">docs/security/decision-log.md</span>.</p>
+        <div class="cols">
+          <div>
+            <p class="col-head">Open residual risk</p>
+            <ul class="tight">
+              <li class="fragment"><strong>Architectural authentication rework</strong> <span class="badge sev-critical">Critical</span> &mdash; pre-existing gateway bearer-flow inconsistency and business-router authorization gaps; separately authorized work.</li>
+              <li class="fragment"><strong>Residual <span class="mono">starlette</span>/<span class="mono">click</span> advisories</strong> &mdash; unfixable within the frozen FastAPI/Pydantic-v1 envelope; held under documented CI waivers.</li>
+              <li class="fragment"><strong>Former DB credential in git history</strong> &mdash; removed from the current tree; rotation + approved history purge remain an operational follow-up.</li>
+              <li class="fragment"><strong>Container default startup</strong> &mdash; images are non-root, but a default <span class="mono">docker run</span> needs the namespace packaged for the build context.</li>
+            </ul>
+          </div>
+          <div>
+            <p class="col-head">Deferred by scope</p>
+            <ul class="tight">
+              <li class="fragment"><span class="mono">pytest</span> (6.x&rarr;9.x, test-only) and <span class="mono">loguru</span> upgrades.</li>
+              <li class="fragment">End-of-life <strong>PostgreSQL v11</strong> engine version.</li>
+              <li class="fragment">Placeholder <strong>demo-credential</strong> rework (architectural).</li>
+              <li class="fragment"><strong>Broad observability</strong> &mdash; tracing, Prometheus wiring, App Insights.</li>
+              <li class="fragment">Dependency <strong>lockfiles</strong>; data-transformation runtime alignment.</li>
+            </ul>
+          </div>
+        </div>
       </section>
 
       <!-- ======================= Slide 9 — Closing ========================= -->
@@ -748,10 +815,10 @@
         <h2>Where to Go Next</h2>
         <ul>
           <li class="fragment">Rationale &mdash; single source of truth: <strong><span class="mono">docs/security/decision-log.md</span></strong>.</li>
-          <li class="fragment">Security policy &amp; disclosure: <strong><span class="mono">SECURITY.md</span></strong>.</li>
-          <li class="fragment">Onboarding: <strong><span class="mono">README.md</span></strong> updated for the new CORS/secret environment variables and non-root containers.</li>
+          <li class="fragment">Security policy, disclosure &amp; residual items: <strong><span class="mono">SECURITY.md</span></strong>.</li>
+          <li class="fragment">Onboarding: <strong><span class="mono">README.md</span></strong> and service READMEs updated for the CORS/secret environment variables and non-root containers.</li>
         </ul>
-        <p class="lead" style="margin-top: var(--gap); color: var(--text);"><strong>Remediation complete &mdash; minimal, targeted, and verifiable.</strong></p>
+        <p class="lead fragment" style="margin-top: var(--gap); color: var(--text);"><strong>Minimal, targeted, and verifiable</strong> remediation of the in-scope findings &mdash; with residual items documented for follow-up.</p>
         <div class="footer-mark">
           <div class="wordmark sm"><span class="bolt" aria-hidden="true">&#9889;</span><span class="name">Blitzy</span></div>
           <span>OMERS Ventures Backend Platform &middot; Security Remediation</span>
@@ -767,23 +834,23 @@
     <button id="btnNext" type="button" title="Next (Right arrow)" aria-label="Next slide">&#8250;</button>
   </div>
 
-  <!-- Slide counter -->
-  <div class="slide-number" aria-live="polite"><b id="curNum">1</b> / <span id="totNum">9</span></div>
+  <!-- Slide counter (decorative; the live region above announces changes). -->
+  <div class="slide-number" aria-hidden="true"><b id="curNum">1</b> / <span id="totNum">9</span></div>
 
   <!-- Keyboard hint -->
   <div class="hint" aria-hidden="true"><kbd>&#8592;</kbd> <kbd>&#8594;</kbd> navigate &middot; <kbd>Space</kbd> advance</div>
 
   <script>
   /*!
-   * Compact, dependency-free slide engine for a self-contained reveal.js-style deck.
+   * Compact, dependency-free slide engine for a single-file executive deck.
    *
-   * This is original code written for this single-file deck. It intentionally
-   * mirrors the reveal.js DOM contract (.reveal > .slides > section) and the
-   * reveal.js navigation/fragment UX so the markup reads idiomatically.
-   * It is NOT the reveal.js library and fetches nothing external.
+   * This is original code written for this deck. It intentionally mirrors the
+   * reveal.js DOM contract (.reveal > .slides > section) and the reveal.js
+   * navigation/fragment UX so the markup reads idiomatically. It is NOT the
+   * reveal.js library and fetches nothing external.
    *
    * reveal.js itself is Copyright (C) Hakim El Hattab and contributors,
-   * released under the MIT License. This attribution is provided because the
+   * released under the MIT License; this attribution is provided because the
    * DOM/UX conventions used here are derived from that project.
    */
   (function () {
@@ -792,14 +859,17 @@
     // Engage JavaScript presentation mode as early as possible (removes the
     // no-JS stacked fallback and switches to single-slide display).
     var docEl = document.documentElement;
-    docEl.className = docEl.className.replace(/\bno-js\b/, "").trim() + " js";
+    if (docEl.className.indexOf(" js") === -1) {
+      docEl.className = docEl.className.replace(/\bno-js\b/, "").trim() + " js";
+    }
 
+    var initialized = false;   // guards against duplicate initialization (idempotent entry point)
     var slides = [];
     var current = 0;
     var fragIndex = 0;         // number of fragments currently revealed on the active slide
     var syncingHash = false;   // guards hashchange recursion
 
-    var progressBar, curNum, totNum, btnPrev, btnNext;
+    var progressBar, curNum, totNum, btnPrev, btnNext, announcer;
 
     function fragmentsOf(slide) {
       return Array.prototype.slice.call(slide.querySelectorAll(".fragment"));
@@ -807,12 +877,15 @@
 
     function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
-    // Apply fragment visibility for the active slide up to fragIndex.
+    // Apply fragment visibility for the active slide up to fragIndex. Unrevealed
+    // fragments are also removed from the accessibility tree (aria-hidden) so
+    // screen readers do not announce not-yet-shown content.
     function applyFragments() {
       var frags = fragmentsOf(slides[current]);
       for (var i = 0; i < frags.length; i++) {
-        if (i < fragIndex) { frags[i].classList.add("visible"); }
-        else { frags[i].classList.remove("visible"); }
+        var shown = i < fragIndex;
+        frags[i].classList.toggle("visible", shown);
+        frags[i].setAttribute("aria-hidden", shown ? "false" : "true");
       }
     }
 
@@ -831,12 +904,32 @@
       }
     }
 
+    // Announce and focus the active slide's heading so assistive technology
+    // is informed of the slide change (heading text + slide position).
+    function announceAndFocus(doFocus) {
+      var slide = slides[current];
+      var heading = slide.querySelector("h1, h2");
+      var label = heading ? heading.textContent.trim()
+                          : (slide.getAttribute("aria-label") || "");
+      if (announcer) {
+        announcer.textContent = "Slide " + (current + 1) + " of " + slides.length +
+                                (label ? ": " + label : "");
+      }
+      if (doFocus && heading) {
+        if (!heading.hasAttribute("tabindex")) { heading.setAttribute("tabindex", "-1"); }
+        try { heading.focus({ preventScroll: true }); } catch (e) { heading.focus(); }
+      }
+    }
+
     // Show a given slide. revealAllFragments=true marks every fragment visible
-    // (used when navigating backwards into a slide).
-    function showSlide(index, revealAllFragments) {
+    // (used when navigating backwards into a slide). focusHeading moves focus
+    // to the slide heading (used for user-initiated navigation).
+    function showSlide(index, revealAllFragments, focusHeading) {
       current = clamp(index, 0, slides.length - 1);
       for (var i = 0; i < slides.length; i++) {
-        slides[i].classList.toggle("present", i === current);
+        var isCur = (i === current);
+        slides[i].classList.toggle("present", isCur);
+        slides[i].setAttribute("aria-hidden", isCur ? "false" : "true");
       }
       var frags = fragmentsOf(slides[current]);
       fragIndex = revealAllFragments ? frags.length : 0;
@@ -844,6 +937,7 @@
       slides[current].scrollTop = 0;
       updateHash();
       updateChrome();
+      announceAndFocus(focusHeading);
     }
 
     function next() {
@@ -854,7 +948,7 @@
         updateHash();
         updateChrome();
       } else if (current < slides.length - 1) { // advance to next slide
-        showSlide(current + 1, false);
+        showSlide(current + 1, false, true);
       }
     }
 
@@ -865,12 +959,12 @@
         updateHash();
         updateChrome();
       } else if (current > 0) {                 // go back, fully revealed
-        showSlide(current - 1, true);
+        showSlide(current - 1, true, true);
       }
     }
 
-    function first() { showSlide(0, false); }
-    function last() { showSlide(slides.length - 1, true); }
+    function first() { showSlide(0, false, true); }
+    function last() { showSlide(slides.length - 1, true, true); }
 
     // ---- URL hash sync (#/<1-based slide>). Fetches nothing. --------------
     function updateHash() {
@@ -924,11 +1018,14 @@
 
     function onHashChange() {
       if (syncingHash) { return; }
-      showSlide(readHash(), true);
+      showSlide(readHash(), true, false);
     }
 
-    // ---- Initialization ---------------------------------------------------
+    // ---- Initialization (idempotent) --------------------------------------
     function initialize(config) {
+      if (initialized) { return; }   // repeated calls are a safe no-op; listeners bind exactly once
+      initialized = true;
+
       slides = Array.prototype.slice.call(
         document.querySelectorAll(".reveal > .slides > section")
       );
@@ -939,6 +1036,7 @@
       totNum = document.getElementById("totNum");
       btnPrev = document.getElementById("btnPrev");
       btnNext = document.getElementById("btnNext");
+      announcer = document.getElementById("slideAnnouncer");
 
       if (btnPrev) { btnPrev.addEventListener("click", prev); }
       if (btnNext) { btnNext.addEventListener("click", next); }
@@ -947,10 +1045,11 @@
       document.addEventListener("touchend", onTouchEnd, { passive: true });
       window.addEventListener("hashchange", onHashChange);
 
-      showSlide(readHash(), false);
+      // Initial render does not steal focus (avoids a jarring focus jump on load).
+      showSlide(readHash(), false, false);
     }
 
-    // reveal.js-style entry point.
+    // reveal.js-style entry point (guarded so it is safe to call more than once).
     window.Reveal = window.Reveal || {};
     window.Reveal.initialize = initialize;
 

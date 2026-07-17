@@ -11,13 +11,17 @@ The Reporting Metrics Service is a crucial component of the OMERS Ventures backe
 - Retrieval of derived financial metrics for portfolio companies
 - Calculation of metrics such as ARR, recurring revenue percentage, and various growth rates
 - Integration with the PostgreSQL database for data storage and retrieval
-- Secure API endpoints with OAuth 2.0 authentication
+- CORS hardening: an explicit, non-wildcard origin allow-list (CWE-942)
 - Scalable FastAPI-based architecture
+
+> **Note on authentication:** the metrics routes in this service declare no authentication dependency today; access control is expected to be provided by the API gateway / network boundary in front of it. Service-level authentication is a documented follow-up.
 
 ## Requirements
 
-- Python 3.10
-- FastAPI 0.68.0
+Versions below reflect this service's pinned `requirements.txt` and its container base image (`python:3.10-slim`).
+
+- Python 3.10 (container base `python:3.10-slim`)
+- FastAPI 0.125.0
 - SQLAlchemy 1.4.22
 - pytest 6.2.4 (for running tests)
 - Other dependencies as listed in `requirements.txt`
@@ -53,6 +57,7 @@ The Reporting Metrics Service is a crucial component of the OMERS Ventures backe
    ```bash
    uvicorn main:app --reload
    ```
+   > **Known limitation:** the application currently fails to import at startup because of a pre-existing, out-of-scope defect (`app/models/models.py` imports `UUID` from `sqlalchemy`, which the pinned SQLAlchemy 1.4.x does not expose). This is a documented follow-up (see the root [`SECURITY.md`](../../../SECURITY.md)); the security configuration is still validated by the service's `tests/test_security_config.py` suite.
 
 ## Usage Instructions
 
@@ -65,20 +70,19 @@ To interact with the Reporting Metrics Service API:
    GET /metrics?company_id=<company_id>&reporting_year=<year>&reporting_quarter=<quarter>
    ```
 
-3. Authenticate using OAuth 2.0 to access secured endpoints. Include the bearer token in the Authorization header of your requests.
-
-4. Refer to the Swagger documentation at `/docs` for detailed API usage, including available endpoints, request parameters, and response schemas.
+3. Refer to the Swagger documentation at `/docs` for detailed API usage, including available endpoints, request parameters, and response schemas.
 
 ## Configuration
 
 The service uses environment variables for configuration. Key configuration options include:
 
-- `ENVIRONMENT`: The current running environment (e.g., 'development', 'production')
-- `DATABASE_URL`: The connection string for the PostgreSQL database. **Required** — must be provided via the environment; no default is bundled.
+- `ENVIRONMENT`: The current running environment (e.g., 'development', 'production'); defaults to `development`.
+- `DATABASE_URL`: The connection string for the PostgreSQL database. **Required** — no default; must be a `postgresql://` DSN (the bare `postgres://` scheme is rejected, since SQLAlchemy 1.4 does not support it).
 - `SECRET_KEY`: Secret key for JWT token generation. **Required** — minimum 32 characters; no default is provided (fail-closed).
-- `ALGORITHM`: The algorithm used for JWT token encoding/decoding
+- `BACKEND_CORS_ORIGINS`: Explicit, non-wildcard browser-origin allow-list as a **JSON array** (e.g. `["https://app.example.com"]`), validated fail-closed — a wildcard `*`, an empty list, or a malformed origin is rejected. Defaults to a localhost list.
+- `LOG_LEVEL`: Application logging level (defaults to `INFO`).
 
-Refer to the `config.py` file for a complete list of configuration options.
+The service defines no `ALGORITHM` setting; JWT handling uses HS256 internally. Refer to the `config.py` file for the complete `Settings` contract.
 
 > **Container:** The service image now runs as a dedicated **non-root user** on the **`python:3.10-slim`** base image.
 

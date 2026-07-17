@@ -21,7 +21,9 @@ class Config(BaseSettings):
     """
 
     # Database configuration
-    DATABASE_URL: PostgresDsn = os.getenv("DATABASE_URL", "postgresql://<username>:<password>@<host>:<port>/<database_name>")
+    # Required from the environment; no default (a placeholder default would let the
+    # service start with an unusable/misleading DSN). Fail closed if unset.
+    DATABASE_URL: PostgresDsn = Field(..., env="DATABASE_URL")
 
     # API configuration
     API_KEY: SecretStr = os.getenv("API_KEY", "<your_api_key_here>")
@@ -46,18 +48,33 @@ class Config(BaseSettings):
     @validator('CORS_ORIGINS', pre=True, always=True, allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
     def _parse_and_validate_cors_origins(cls, v):
         # Accept comma-separated CORS_ORIGINS (see .env.sample / README) and reject
-        # wildcard, empty, or malformed origins (CWE-942); require http(s) scheme and host.
+        # wildcard, empty, or malformed origins (CWE-942). Each entry must be a
+        # serialized origin: http(s) scheme + host, optional valid port, and no
+        # credentials, path, query, or fragment.
         if isinstance(v, str):
             v = [origin.strip() for origin in v.split(',') if origin.strip()]
-        from urllib.parse import urlparse
+        from urllib.parse import urlsplit
         if not v:
             raise ValueError("CORS_ORIGINS must be a non-empty explicit allow-list; wildcard '*' is not permitted.")
         for origin in v:
             if origin == '*':
                 raise ValueError("Wildcard '*' CORS origin is not permitted with credentials (CWE-942).")
-            parsed = urlparse(origin)
-            if not (parsed.scheme in ('http', 'https') and parsed.netloc):
-                raise ValueError(f"Invalid CORS origin URL: {origin}")
+            parts = urlsplit(origin)
+            try:
+                parts.port  # accessing an invalid port raises ValueError
+            except ValueError:
+                raise ValueError(f"Invalid CORS origin (bad port): {origin}")
+            if (parts.scheme not in ('http', 'https')
+                    or not parts.hostname
+                    or parts.username is not None
+                    or parts.password is not None
+                    or parts.path
+                    or parts.query
+                    or parts.fragment):
+                raise ValueError(
+                    f"Invalid CORS origin (expected scheme://host[:port] with no "
+                    f"credentials/path/query/fragment): {origin}"
+                )
         return v
 
     class Config:

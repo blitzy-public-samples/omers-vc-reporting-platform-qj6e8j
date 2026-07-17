@@ -33,25 +33,29 @@ The following environment variables are **required** for secure operation and mu
 
 ### CORS Origins
 
-Wildcard CORS (`*`) is no longer permitted. Each browser-facing service consumes an explicit, comma-separated allow-list of origins:
+Wildcard CORS (`*`) is no longer permitted; every service validates its origin allow-list and fails closed on `*`, an empty list, or a malformed origin. **The variable name and value format differ per service** (matching each service's `.env.sample` and `config.py`), so use the exact form listed below:
 
-- **API Gateway** (`src/backend/api_gateway`): `CORS_ALLOW_ORIGINS` — comma-separated list, e.g. `http://localhost:3000,https://app.omersventures.com`. (The code now binds this name to match `.env.sample`; the previous `CORS_ORIGINS` binding was a mismatch that has been corrected.)
-- **Reporting Financials Service** (`src/backend/reporting_financials_service`): `CORS_ORIGINS` — explicit origins list (no longer `*`).
-- **Metrics Input Service** (`src/backend/metrics_input_service`): `CORS_ORIGINS` — explicit origins list (newly added setting with a safe, non-wildcard default).
+| Service | Variable | Format | Default |
+|---------|----------|--------|---------|
+| Authentication Service (`src/backend/authentication_service`) | `CORS_ORIGINS` | Comma-separated, e.g. `http://localhost:3000,https://app.omersventures.com` | `http://localhost:3000` |
+| API Gateway (`src/backend/api_gateway`) | `CORS_ALLOW_ORIGINS` | Comma-separated | `http://localhost:3000` (the code binds this name to match `.env.sample`; the previous `CORS_ORIGINS` mismatch was corrected) |
+| Reporting Financials Service (`src/backend/reporting_financials_service`) | `CORS_ORIGINS` | Comma-separated | `http://localhost:3000` |
+| Metrics Input Service (`src/backend/metrics_input_service`) | `CORS_ORIGINS` | **JSON array**, e.g. `["https://app.example.com"]` | `["http://localhost:3000","https://localhost:3000"]` |
+| Reporting Metrics Service (`src/backend/reporting_metrics_service`) | `BACKEND_CORS_ORIGINS` | **JSON array** | `["http://localhost:3000","https://localhost:3000","http://localhost","https://localhost"]` |
 
-The Authentication Service and Reporting Metrics Service also consume an explicit origins list.
+All five services ship a safe non-wildcard default, so `CORS`/`BACKEND_CORS_ORIGINS` is optional for local development but must be set to the real front-end origins before deploying to any browser-facing environment.
 
 ### Secrets
 
 Signing keys and database URLs are required from the environment (no fallback defaults; a minimum length is enforced where noted):
 
 - **Authentication Service** (`src/backend/authentication_service`): `SECRET_KEY` (required, **minimum 32 characters**), `DATABASE_URL` (required).
-- **API Gateway** (`src/backend/api_gateway`): `SECRET_KEY` (required), `DATABASE_URL` (required).
-- **Reporting Financials Service** (`src/backend/reporting_financials_service`): `JWT_SECRET_KEY` (required, minimum length enforced — no `"your-secret-key"` default), `DATABASE_URL` (required).
-- **Reporting Metrics Service** (`src/backend/reporting_metrics_service`): `SECRET_KEY` (required, **minimum 32 characters** — no `"your-secret-key-here"` default), `DATABASE_URL` (required — no credential-bearing localhost default).
-- **Metrics Input Service** (`src/backend/metrics_input_service`): `JWT_SECRET_KEY` (required), `DATABASE_URL` (required).
+- **API Gateway** (`src/backend/api_gateway`): `SECRET_KEY` (required, **minimum 32 characters**), `DATABASE_URL` (required), `API_KEY` (required).
+- **Reporting Financials Service** (`src/backend/reporting_financials_service`): `JWT_SECRET_KEY` (required, **minimum 32 characters** — no `"your-secret-key"` default), `DATABASE_URL` (required, must be a `postgresql://` DSN).
+- **Reporting Metrics Service** (`src/backend/reporting_metrics_service`): `SECRET_KEY` (required, **minimum 32 characters** — no `"your-secret-key-here"` default), `DATABASE_URL` (required, must be a `postgresql://` DSN — no credential-bearing localhost default).
+- **Metrics Input Service** (`src/backend/metrics_input_service`): `DATABASE_URL` (required), `API_KEY` (required), `LOG_LEVEL` (required). This service defines **no** JWT/signing-key setting and performs no JWT handling of its own.
 
-Signing keys must be strong, unique, and provided via the environment. Services will raise and fail to start if a required secret is absent or shorter than the enforced minimum.
+Signing keys must be strong, unique, and provided via the environment. Services will raise and fail to start if a required secret is absent or, where a minimum is enforced, shorter than 32 characters.
 
 ### Container Runtime
 

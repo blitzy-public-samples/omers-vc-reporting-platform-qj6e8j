@@ -1,11 +1,18 @@
 # src/backend/authentication_service/app/security.py
 
 import hashlib
+import json
 import logging
+import re
 import uuid
 import jwt
 from datetime import datetime, timedelta
 from typing import Optional
+
+# Strict correlation-id charset/length: alphanumerics, dot, underscore, hyphen only.
+# An inbound correlation header is honored only if it matches this pattern, which cannot
+# contain whitespace, newlines, or `=` and therefore cannot forge log fields (CWE-117).
+_CORRELATION_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 # PyJWT version 2.3.0
 from jwt import PyJWTError
@@ -103,37 +110,42 @@ def sanitize(value: Optional[str], max_len: int = 128) -> str:
 
 def log_security_event(service: str, event: str, outcome: str, correlation_id: str, **fields) -> None:
     """
-    Emit exactly one normalized, structured security-event log record.
+    Emit exactly one structured (JSON) security-event log record.
 
     Every record carries the emitting ``service``, the ``event`` type, an ``outcome``, and the
-    request-level ``correlation_id``; any additional non-sensitive fields are sanitized. This is
-    the single event contract consumed by the security-observability dashboard panels.
+    request-level ``correlation_id``; any additional fields are sanitized. Emitting a single
+    JSON object (rather than concatenated ``key=value`` text) means no field value — including
+    an attacker-controlled ``origin`` header — can inject additional log fields (CWE-117). This
+    is the single event contract consumed by the security-observability dashboard panels.
     """
-    parts = [
-        f"security_event={event}",
-        f"service={service}",
-        f"outcome={outcome}",
-        f"correlation_id={correlation_id}",
-    ]
+    record = {
+        "security_event": sanitize(event),
+        "service": sanitize(service),
+        "outcome": sanitize(outcome),
+        "correlation_id": sanitize(correlation_id),
+    }
     for key, value in fields.items():
-        parts.append(f"{key}={sanitize(str(value))}")
-    _security_logger.warning(" ".join(parts))
+        record[sanitize(str(key))] = sanitize(str(value))
+    _security_logger.warning(json.dumps(record, separators=(",", ":")))
 
 
 def get_correlation_id(request) -> str:
     """
     Resolve one correlation identifier per request, propagated (not regenerated per failure).
 
-    Prefers an inbound ``X-Correlation-ID``/``X-Request-ID`` header, otherwise generates a UUID,
-    and caches it on ``request.state`` so every event for the same request shares one id (M-05).
+    An inbound ``X-Correlation-ID``/``X-Request-ID`` header is honored only when it matches a
+    strict charset/length (``_CORRELATION_ID_RE``); otherwise a fresh UUID is generated. This
+    prevents log-injection (CWE-117) via a forged correlation header. The resolved id is cached
+    on ``request.state`` so every event for the same request shares one id (M-05).
     """
     correlation_id = getattr(request.state, "correlation_id", None)
     if not correlation_id:
-        correlation_id = (
+        candidate = (
             request.headers.get("X-Correlation-ID")
             or request.headers.get("X-Request-ID")
-            or str(uuid.uuid4())
+            or ""
         )
+        correlation_id = candidate if _CORRELATION_ID_RE.match(candidate) else str(uuid.uuid4())
         request.state.correlation_id = correlation_id
     return correlation_id
 
@@ -143,9 +155,11 @@ def install_security_logging(app, service: str, allowed_origins) -> None:
     Install the shared security-event contract on a FastAPI app (used by every construction path).
 
     Adds one HTTP middleware that (1) assigns/propagates a request correlation id and (2) emits a
-    scoped ``cors_rejection`` security event when a request carries an ``Origin`` header that is not
-    in the configured allow-list (CWE-942). The middleware never alters the response status or body;
-    it only adds the correlation id to the response headers and emits observability signals.
+    ``cors_origin_not_allowed`` observability signal when a request carries an ``Origin`` header
+    that is not in the configured allow-list (CWE-942). This is an observability signal only: the
+    server does NOT reject the request — the browser withholds the credentialed response because
+    ``CORSMiddleware`` does not echo an unlisted origin. The middleware never alters the response
+    status or body; it only adds the correlation id to the response headers and emits the signal.
     """
     normalized_origins = set(allowed_origins or [])
 
@@ -156,8 +170,8 @@ def install_security_logging(app, service: str, allowed_origins) -> None:
         if origin and origin not in normalized_origins:
             log_security_event(
                 service=service,
-                event="cors_rejection",
-                outcome="denied",
+                event="cors_origin_not_allowed",
+                outcome="not_allowed",
                 correlation_id=correlation_id,
                 origin=origin,
             )

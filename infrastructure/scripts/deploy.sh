@@ -10,19 +10,9 @@
 #   ensuring consistency and repeatability in deployments.
 
 # Set environment variables
+export TF_VAR_file="variables.tf"
 export AZURE_SUBSCRIPTION_ID=$(az account show --query id -o tsv)
 export AZURE_TENANT_ID=$(az account show --query tenantId -o tsv)
-
-# Sensitive input provisioning (CWE-798). The PostgreSQL administrator password is supplied via
-# the TF_VAR_postgresql_admin_password environment variable, which Terraform reads automatically
-# for var.postgresql_admin_password. Map it from a masked pipeline/variable-group secret; never
-# pass it as a -var/-var-file argument or echo it (avoids shell-history and build-log exposure).
-# The credential formerly committed to this repository must be treated as compromised: rotate and
-# revoke it, then perform approved git-history/secret-scanner remediation without reusing the value.
-if [ -z "${TF_VAR_postgresql_admin_password:-}" ]; then
-    echo "TF_VAR_postgresql_admin_password is not set. Provide it from a masked secret before deploying."
-    exit 1
-fi
 
 # Function to initialize Terraform
 initialize_terraform() {
@@ -39,7 +29,7 @@ initialize_terraform() {
 # Function to plan infrastructure
 plan_infrastructure() {
     echo "Planning infrastructure changes..."
-    terraform plan -out=tfplan
+    terraform plan -var-file=$TF_VAR_file -out=tfplan
     if [ $? -ne 0 ]; then
         echo "Terraform plan failed."
         return 1

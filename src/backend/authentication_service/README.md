@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Authentication Service is a critical component of the backend platform, responsible for implementing secure authentication and authorization mechanisms to control access to the backend platform and its resources. This service is designed to work seamlessly with Azure Active Directory (AAD) and implements OAuth 2.0 for robust token-based authentication.
+The Authentication Service is a component of the backend platform responsible for issuing and validating JSON Web Tokens (JWT). It implements JWT (HS256) token-based authentication and extracts bearer tokens using FastAPI's `OAuth2PasswordBearer` scheme. **Note:** the login handler's credential check is currently a placeholder for demonstration, and Azure Active Directory integration is not yet wired; a full authentication implementation (replacing the placeholder check and wiring a real identity source) is a documented follow-up (see the root [`SECURITY.md`](../../../SECURITY.md)).
 
 ## Setup Instructions
 
@@ -41,24 +41,20 @@ The Authentication Service is a critical component of the backend platform, resp
 
 ### Token Generation
 
-Use the `/token` endpoint to generate JWT tokens for authenticated users:
+Use the `POST /token` endpoint to obtain a JWT. The endpoint currently accepts `username` and `password` as **query parameters** (its credential check is a placeholder for demonstration only — see the note in the Overview):
 
 ```http
-POST /token
-Content-Type: application/json
-
-{
-  "username": "user@example.com",
-  "password": "securepassword"
-}
+POST /token?username=<username>&password=<password>
 ```
 
-### Token Validation
+On success it returns a JSON body of the form `{"access_token": "<jwt>", "token_type": "bearer"}`.
 
-Secure API endpoints by validating tokens using the `/validate` endpoint:
+### Accessing a Protected Route
+
+The `GET /protected` endpoint requires a valid bearer token; an invalid or expired token returns `401 Unauthorized`:
 
 ```http
-GET /validate
+GET /protected
 Authorization: Bearer <your_jwt_token>
 ```
 
@@ -80,9 +76,9 @@ The service uses environment variables for configuration. Key variables include:
 
 This service relies on the following key dependencies:
 
-- `python-dotenv (0.19.2)`: For loading environment variables from a .env file.
-- `PyJWT (2.3.0)`: For encoding and decoding JSON Web Tokens.
-- `FastAPI (0.68.1)`: The web framework used for creating the API.
+- `python-dotenv (1.0.1)`: For loading environment variables from a .env file.
+- `PyJWT (2.13.0)`: For encoding and decoding JSON Web Tokens.
+- `FastAPI (0.125.0)`: The web framework used for creating the API.
 - `Uvicorn (0.15.0)`: ASGI server for running the FastAPI application.
 - `pytest (6.2.5)`: Testing framework for writing and running test cases.
 

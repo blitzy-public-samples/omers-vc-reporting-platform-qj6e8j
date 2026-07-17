@@ -45,8 +45,11 @@ def client():
     return TestClient(create_app())
 
 
-@pytest.mark.parametrize("path", ["/protected", "/token"])
-def test_cors_never_wildcard_with_credentials(client, path):
+# Each routed path is preflighted with the HTTP method the route actually serves
+# (/protected is GET, /token is POST), so the CORS preflight is semantically valid
+# for that route rather than declaring a method the route does not accept.
+@pytest.mark.parametrize("path,method", [("/protected", "GET"), ("/token", "POST")])
+def test_cors_never_wildcard_with_credentials(client, path, method):
     """No preflight response may reflect an untrusted origin or a wildcard.
 
     Guards the exact CWE-942 combination (wildcard origin with credentials)
@@ -59,7 +62,7 @@ def test_cors_never_wildcard_with_credentials(client, path):
         path,
         headers={
             "Origin": UNTRUSTED_ORIGIN,
-            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Method": method,
         },
     )
     acao = response.headers.get("access-control-allow-origin")

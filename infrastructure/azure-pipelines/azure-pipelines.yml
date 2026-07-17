@@ -86,11 +86,8 @@ stages:
 
 - stage: SecurityScan
   displayName: Dependency vulnerability scan
-  # dependsOn: [] makes the security gate reachable on every pipeline run,
-  # independent of the Build and Test stages (whose defects are outside the
-  # scope of this security remediation). The gate must never be skipped merely
-  # because an upstream stage failed.
-  dependsOn: []
+  # Gate ordering: Build -> Test -> SecurityScan; Deploy requires all three (CWE-1104).
+  dependsOn: Test
   jobs:
   # The backend services deploy on two distinct runtimes, so each group is
   # audited on the runtime it actually ships on: authentication_service,
@@ -114,7 +111,7 @@ stages:
         pip install pip-audit==2.9.0
 
         # These services deploy on Python 3.10, so the patched requests
-        # (>= 2.33.0), python-dotenv (>= 1.2.2), urllib3 (>= 2.7.0), and click
+        # (>= 2.33.0), python-dotenv (1.0.1), urllib3 (>= 2.7.0), and click
         # (>= 8.2.0) are installable here and are therefore enforced (not ignored).
         # Each manifest is audited on its own because the services pin mutually
         # incompatible versions; per-manifest invocation resolves and audits each
@@ -227,10 +224,13 @@ stages:
         # Pin pip-audit for reproducible, deterministic scans (CWE-1104).
         pip install pip-audit==2.9.0
 
-        # The data_transformation function deploys on Python 3.11 (see
-        # infrastructure/terraform/main.tf), where the patched requests/urllib3
-        # (which require Python >= 3.10) are installable. No requests/urllib3
-        # ignores apply here, so the gate enforces those fixes for this manifest.
+        # This manifest's patched requests/urllib3 require Python >= 3.10, so the
+        # audit runs on Python 3.11 to confirm they resolve cleanly. No requests/
+        # urllib3 ignores apply here, so the gate enforces those fixes for this
+        # manifest. NOTE: the function app's deploy runtime in
+        # infrastructure/terraform/main.tf is currently PYTHON|3.9; aligning it to
+        # >= 3.10 so these patched pins install at deploy time is a documented
+        # deployment follow-up (see SECURITY.md / the security decision log).
         if ! pip-audit -r src/functions/data_transformation/requirements.txt --progress-spinner off; then
           echo "##vso[task.logissue type=error]pip-audit found vulnerabilities in src/functions/data_transformation/requirements.txt"
           echo "Function dependency vulnerability scan FAILED - advisories present (see above)."
@@ -242,6 +242,12 @@ stages:
 
 - stage: Deploy
   displayName: Deploy stage
+  # Deploy is gated on every upstream success: Build, Test, and SecurityScan must
+  # all pass before any deployment runs (prevents unbuilt/untested code reaching prod).
+  dependsOn:
+    - Build
+    - Test
+    - SecurityScan
   jobs:
   - deployment: Deploy
     displayName: Deploy to AKS

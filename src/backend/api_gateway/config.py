@@ -44,16 +44,31 @@ class Settings(BaseSettings):
         # Accept comma-separated CORS_ALLOW_ORIGINS (see .env.sample) as an explicit list
         if isinstance(v, str):
             v = [origin.strip() for origin in v.split(',') if origin.strip()]
-        # Reject wildcard, empty, or malformed origins (CWE-942); require http(s) scheme and host
-        from urllib.parse import urlparse
+        # Reject wildcard, empty, or malformed origins (CWE-942). Each entry must be a
+        # serialized origin: http(s) scheme + host, optional valid port, and no
+        # credentials, path, query, or fragment.
+        from urllib.parse import urlsplit
         if not v:
             raise ValueError("CORS_ALLOW_ORIGINS must be a non-empty explicit allow-list; wildcard '*' is not permitted.")
         for origin in v:
             if origin == '*':
                 raise ValueError("Wildcard '*' CORS origin is not permitted with credentials (CWE-942).")
-            parsed = urlparse(origin)
-            if not (parsed.scheme in ('http', 'https') and parsed.netloc):
-                raise ValueError(f"Invalid CORS origin URL: {origin}")
+            parts = urlsplit(origin)
+            try:
+                parts.port  # accessing an invalid port raises ValueError
+            except ValueError:
+                raise ValueError(f"Invalid CORS origin (bad port): {origin}")
+            if (parts.scheme not in ('http', 'https')
+                    or not parts.hostname
+                    or parts.username is not None
+                    or parts.password is not None
+                    or parts.path
+                    or parts.query
+                    or parts.fragment):
+                raise ValueError(
+                    f"Invalid CORS origin (expected scheme://host[:port] with no "
+                    f"credentials/path/query/fragment): {origin}"
+                )
         return v
 
     class Config:

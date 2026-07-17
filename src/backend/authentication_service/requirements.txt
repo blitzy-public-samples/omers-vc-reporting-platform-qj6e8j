@@ -18,7 +18,7 @@ PyJWT==2.13.0
 # Environment variable management
 # Version: 0.19.2
 # Purpose: To load environment variables from a .env file.
-python-dotenv==1.2.2
+python-dotenv==1.0.1
 
 # Testing framework
 # Version: 6.2.5
@@ -82,4 +82,5 @@ redis==3.5.3
 # Requirements addressed:
 # - Authentication and Authorization Implementation (Technical Requirements/Feature 4: Authentication and Authorization Implementation)
 #   This file includes libraries necessary for implementing secure authentication and authorization mechanisms,
-#   such as PyJWT for token handling, passlib for password hashing, and fastapi-cors for secure cross-origin requests.
+#   such as PyJWT for token handling and passlib for password hashing. Cross-origin requests are handled by
+#   starlette's built-in CORSMiddleware (via FastAPI), so no separate CORS dependency is required.

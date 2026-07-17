@@ -1,3 +1,11 @@
+import os
+
+# config.py validates SECRET_KEY (>= 32 chars) and DATABASE_URL at import time and
+# security.py imports config, so these must exist before the imports below.
+# setdefault preserves any externally supplied value (e.g. from CI).
+os.environ.setdefault("SECRET_KEY", "test-secret-key-thirty-two-chars-min-000")
+os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
+
 import pytest
 import jwt
 from datetime import datetime, timedelta
@@ -71,16 +79,19 @@ def test_validate_token(user_id):
         pytest.fail(f"Failed to validate a valid token: {str(e)}")
         return False
     
-    # Test with invalid token
+    # Test with invalid token: validate_token fails closed, returning None
+    # (its documented Optional[str] contract; /protected depends on this None return).
     invalid_token = "invalid.token.string"
-    with pytest.raises(jwt.PyJWTError):
-        validate_token(invalid_token)
+    assert validate_token(invalid_token) is None
     
-    # Test with expired token
-    config['TOKEN_EXPIRATION'] = -1  # Set expiration to negative value to create an expired token
-    expired_token = generate_token(user_id)
-    with pytest.raises(jwt.ExpiredSignatureError):
-        validate_token(expired_token)
+    # Test with expired token: build a token whose exp is already in the past,
+    # then confirm validate_token fails closed (returns None) instead of accepting it.
+    expired_token = jwt.encode(
+        {"sub": user_id, "exp": datetime.utcnow() - timedelta(minutes=1)},
+        config['SECRET_KEY'],
+        algorithm="HS256",
+    )
+    assert validate_token(expired_token) is None
     
     return True
 
