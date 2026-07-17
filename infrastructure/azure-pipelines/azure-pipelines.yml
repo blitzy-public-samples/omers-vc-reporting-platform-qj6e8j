@@ -92,12 +92,73 @@ stages:
   # because an upstream stage failed.
   dependsOn: []
   jobs:
-  # The five backend services are frozen on the Python 3.9 baseline, while the
-  # data_transformation function app deploys on Python 3.11 (see
-  # infrastructure/terraform/main.tf). Each group is therefore audited on its own
-  # runtime so the gate enforces every fix that is installable on that runtime.
-  # Full rationale: security decision log.
-  - job: BackendDependencyScan
+  # The backend services deploy on two distinct runtimes, so each group is
+  # audited on the runtime it actually ships on: authentication_service,
+  # reporting_financials_service, and reporting_metrics_service on Python 3.10;
+  # api_gateway and metrics_input_service on Python 3.9. The data_transformation
+  # function app is audited separately on Python 3.11 (see FunctionDependencyScan).
+  # Auditing each group on its real runtime lets the gate enforce every fix that
+  # is installable there and prevents masking a fixable advisory behind an
+  # inaccurate runtime claim. Full rationale: security decision log.
+  - job: Python310BackendDependencyScan
+    displayName: Scan Python 3.10 backend dependencies with pip-audit
+    steps:
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
+        addToPath: true
+    - script: |
+        set -u
+        python -m pip install --upgrade pip
+        # Pin pip-audit for reproducible, deterministic scans (CWE-1104).
+        pip install pip-audit==2.9.0
+
+        # These services deploy on Python 3.10, so the patched requests
+        # (>= 2.33.0), python-dotenv (>= 1.2.2), urllib3 (>= 2.7.0), and click
+        # (>= 8.2.0) are installable here and are therefore enforced (not ignored).
+        # Each manifest is audited on its own because the services pin mutually
+        # incompatible versions; per-manifest invocation resolves and audits each
+        # service's transitive dependency tree.
+        MANIFESTS="\
+          src/backend/authentication_service/requirements.txt \
+          src/backend/reporting_financials_service/requirements.txt \
+          src/backend/reporting_metrics_service/requirements.txt"
+
+        # The only suppressed advisories are those whose fix would breach the
+        # Pydantic v1 envelope (FastAPI < 0.126 holds starlette below 0.51) or are
+        # AAP-deferred. Any NEW or non-listed advisory fails the gate. Full
+        # rationale: security decision log.
+        IGNORES=""
+        # AAP-deferred dev/test toolchain advisories:
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-1845"   # pytest: three-major-version jump deferred (AAP 0.6.4)
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2022-14"     # loguru: Windows-only advisory (informational)
+        # Fix requires FastAPI >= 0.126 which drops Pydantic v1 (transitive starlette via fastapi 0.125.0):
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-161"    # starlette
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-248"    # starlette
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-249"    # starlette
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2280"   # starlette
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2281"   # starlette
+
+        status=0
+        for manifest in $MANIFESTS; do
+          echo "==================================================================="
+          echo "Auditing $manifest (Python 3.10)"
+          echo "==================================================================="
+          if ! pip-audit -r "$manifest" $IGNORES --progress-spinner off; then
+            echo "##vso[task.logissue type=error]pip-audit found unignored vulnerabilities in $manifest"
+            status=1
+          fi
+        done
+
+        if [ "$status" -ne 0 ]; then
+          echo "Python 3.10 backend dependency scan FAILED - unignored advisories present (see above)."
+          exit 1
+        fi
+        echo "Python 3.10 backend dependency scan complete: no unignored advisories in the audited manifests."
+      displayName: 'Run pip-audit on the Python 3.10 backend manifests'
+      workingDirectory: $(Build.SourcesDirectory)
+
+  - job: Python39BackendDependencyScan
     displayName: Scan Python 3.9 backend dependencies with pip-audit
     steps:
     - task: UsePythonVersion@0
@@ -110,32 +171,23 @@ stages:
         # Pin pip-audit for reproducible, deterministic scans (CWE-1104).
         pip install pip-audit==2.9.0
 
-        # Each manifest is audited on its own. The five backend services pin
-        # mutually incompatible versions (e.g. pytest 6.2.4 vs 6.2.5, SQLAlchemy
-        # 1.4.22 vs 1.4.25), so a single combined resolution is impossible;
-        # per-manifest invocation resolves and audits each service's full
-        # dependency tree (transitive packages included).
+        # These services deploy on Python 3.9. Each manifest now pins its deployed
+        # FastAPI/uvicorn web stack, so the audit resolves and audits the full
+        # transitive tree (starlette included). Per-manifest invocation is used
+        # because the services pin mutually incompatible versions.
         MANIFESTS="\
           src/backend/api_gateway/requirements.txt \
-          src/backend/authentication_service/requirements.txt \
-          src/backend/metrics_input_service/requirements.txt \
-          src/backend/reporting_financials_service/requirements.txt \
-          src/backend/reporting_metrics_service/requirements.txt"
+          src/backend/metrics_input_service/requirements.txt"
 
-        # Advisories suppressed below are the only findings whose fix would breach
-        # these backends' frozen compatibility envelope (Python 3.9 baseline;
-        # Pydantic v1 via FastAPI < 0.126) or are AAP-deferred. Any NEW or
-        # non-listed advisory fails the gate. Full rationale: security decision log.
+        # The only suppressed advisories are those whose fix is not installable on
+        # Python 3.9 (click >= 8.2.0 needs py >= 3.10), would breach the Pydantic v1
+        # envelope (FastAPI < 0.126 holds starlette below 0.51), or are AAP-deferred.
+        # Any NEW or non-listed advisory fails the gate. Full rationale: security decision log.
         IGNORES=""
-        # AAP-deferred dev/test toolchain advisories:
-        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-1845"   # pytest: fix 9.0.3 requires Python >= 3.10
-        IGNORES="$IGNORES --ignore-vuln PYSEC-2022-14"     # loguru: Windows-only advisory
-        # Fix requires Python >= 3.10 (backend baseline is 3.9):
-        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2270"   # python-dotenv: fix 1.2.2 needs py >= 3.10
-        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2275"   # requests: fix 2.33.0 needs py >= 3.10
-        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-141"    # urllib3: fix 2.7.0 needs py >= 3.10
-        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-142"    # urllib3: fix 2.7.0 needs py >= 3.10
-        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2132"   # click (transitive): fix >= 8.2.0 needs py >= 3.10
+        # AAP-deferred dev/test toolchain advisory:
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-1845"   # pytest: fix 9.0.3 requires Python >= 3.10 (also AAP-deferred)
+        # Fix requires Python >= 3.10 (this group's runtime is 3.9):
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2132"   # click (transitive via uvicorn): fix >= 8.2.0 needs py >= 3.10
         # Fix requires FastAPI >= 0.126 which drops Pydantic v1 (transitive starlette via fastapi 0.125.0):
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-161"    # starlette
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-248"    # starlette
@@ -146,7 +198,7 @@ stages:
         status=0
         for manifest in $MANIFESTS; do
           echo "==================================================================="
-          echo "Auditing $manifest"
+          echo "Auditing $manifest (Python 3.9)"
           echo "==================================================================="
           if ! pip-audit -r "$manifest" $IGNORES --progress-spinner off; then
             echo "##vso[task.logissue type=error]pip-audit found unignored vulnerabilities in $manifest"
@@ -155,10 +207,10 @@ stages:
         done
 
         if [ "$status" -ne 0 ]; then
-          echo "Backend dependency vulnerability scan FAILED - unignored advisories present (see above)."
+          echo "Python 3.9 backend dependency scan FAILED - unignored advisories present (see above)."
           exit 1
         fi
-        echo "Backend dependency vulnerability scan PASSED for all backend manifests."
+        echo "Python 3.9 backend dependency scan complete: no unignored advisories in the audited manifests."
       displayName: 'Run pip-audit on the Python 3.9 backend manifests'
       workingDirectory: $(Build.SourcesDirectory)
 

@@ -57,11 +57,6 @@ def load_config():
         if not config[setting]:
             raise ValueError(f"Missing required configuration setting: {setting}")
 
-    # CWE-942: reject a wildcard origin. A '*' allow-list combined with the
-    # credentialed CORS middleware would expose credentialed cross-origin access.
-    if '*' in config['CORS_ORIGINS']:
-        raise ValueError("CORS_ORIGINS must not contain '*' (wildcard) when credentials are enabled")
-
     return config
 
 # Global configuration variables

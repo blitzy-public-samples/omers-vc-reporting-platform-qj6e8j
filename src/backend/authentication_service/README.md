@@ -33,7 +33,7 @@ The Authentication Service is a critical component of the backend platform, resp
    docker run -p 8000:8000 --env-file .env authentication-service
    ```
 
-   **Note:** The container image runs as a dedicated non-root user on the `python:3.9-slim` base image.
+   **Note:** The container image runs as a dedicated non-root user (uid 1000) on the `python:3.10-slim` base image.
 
 5. Access the FastAPI application through the specified host and port (default: http://localhost:8000).
 

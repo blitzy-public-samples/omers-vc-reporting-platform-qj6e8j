@@ -18,7 +18,7 @@ PyJWT==2.13.0
 # Environment variable management
 # Version: 0.19.2
 # Purpose: To load environment variables from a .env file.
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # Testing framework
 # Version: 6.2.5
@@ -32,7 +32,7 @@ anyio<4
 # HTTP client for Python (used for testing)
 # Version: 2.27.1
 # Purpose: To make HTTP requests in test cases.
-requests==2.32.4
+requests==2.34.2
 
 # Password hashing
 # Version: 1.7.4

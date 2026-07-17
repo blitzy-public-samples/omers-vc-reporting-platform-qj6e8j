@@ -8,7 +8,7 @@ Requirements addressed:
   Ensure the API supports configuration management to handle different environments and settings.
 """
 
-from pydantic import BaseSettings  # version 1.8.2
+from pydantic import BaseSettings, validator  # version 1.8.2
 
 class Settings(BaseSettings):
     """
@@ -26,6 +26,26 @@ class Settings(BaseSettings):
 
     # CWE-942: explicit non-wildcard CORS allow-list (never "*"); overridable via env
     CORS_ORIGINS: list = ['http://localhost:3000', 'https://localhost:3000']
+
+    @validator('CORS_ORIGINS', always=True)
+    def _validate_cors_origins(cls, value):
+        # CWE-942: fail closed on any invalid entry; only explicit http(s) origins are allowed.
+        from urllib.parse import urlparse
+        if not value:
+            raise ValueError("CORS_ORIGINS must define at least one explicit origin")
+        for origin in value:
+            if not isinstance(origin, str) or "*" in origin:
+                raise ValueError("CORS_ORIGINS must not contain wildcard entries")
+            parsed = urlparse(origin)
+            if parsed.scheme not in ("http", "https"):
+                raise ValueError("CORS_ORIGINS entries must use the http or https scheme")
+            if not parsed.netloc:
+                raise ValueError("CORS_ORIGINS entries must include a host")
+            if parsed.username or parsed.password:
+                raise ValueError("CORS_ORIGINS entries must not include userinfo")
+            if parsed.path or parsed.query or parsed.fragment:
+                raise ValueError("CORS_ORIGINS entries must be bare origins (no path, query, or fragment)")
+        return value
 
     class Config:
         env_file = ".env"
@@ -51,19 +71,6 @@ settings = load_settings()
 
 # Note: Ensure that the .env file is correctly set up with the necessary environment variables
 # such as DATABASE_URL, API_KEY, and LOG_LEVEL to avoid runtime errors.
-
-def validate_cors_origins(origins: list):
-    """Reject CORS origins lacking a scheme/netloc (CWE-942)."""
-    from urllib.parse import urlparse
-    for origin in origins:
-        result = urlparse(origin)
-        if not all([result.scheme, result.netloc]):
-            raise ValueError(f"Invalid CORS origin URL: {origin}")
-
-try:
-    validate_cors_origins(settings.CORS_ORIGINS)
-except ValueError as e:
-    print(f"Configuration Error: {e}")
 
 # Imports from related modules
 from src.backend.metrics_input_service.app.models.models import MetricsInput

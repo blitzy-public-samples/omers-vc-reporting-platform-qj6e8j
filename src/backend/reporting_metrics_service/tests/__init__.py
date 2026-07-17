@@ -41,24 +41,14 @@ def override_get_db():
     finally:
         db.close()
 
-# Pre-existing, out-of-scope defect (noted follow-up -- see docs/security/decision-log.md):
-# app/database.py and app/schemas.py do not exist and app/__init__.py imports main, so
-# importing the app package or main raises ImportError. Guard the app-dependent wiring
-# (models import, table creation, dependency override, test client) so this package
-# imports cleanly and the security regression tests can be collected.
-try:
-    from src.backend.reporting_metrics_service.app.models import ReportingMetrics
-    from src.backend.reporting_metrics_service.main import app, get_db
+from src.backend.reporting_metrics_service.app.models import ReportingMetrics
+from src.backend.reporting_metrics_service.main import app, get_db
 
-    # Create tables in the test database
-    ReportingMetrics.metadata.create_all(bind=engine)
+# Create tables in the test database
+ReportingMetrics.metadata.create_all(bind=engine)
 
-    app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
-except ImportError:
-    ReportingMetrics = None
-    app = None
-    client = None
+app.dependency_overrides[get_db] = override_get_db
+client = TestClient(app)
 
 # Setup function to initialize test data
 @pytest.fixture(scope="module")
@@ -90,11 +80,8 @@ def teardown_test_data():
     finally:
         db.close()
 
-# Import test modules (guarded: test_metrics imports the pre-existing broken app package)
-try:
-    from .test_metrics import test_get_reporting_metrics
-except ImportError:
-    pass
+# Import test modules
+from .test_metrics import test_get_reporting_metrics
 
 # Define test suite
 def test_suite():

@@ -10,6 +10,7 @@ Requirements addressed:
 from fastapi import FastAPI
 from src.backend.api_gateway.app.routers.routes import setup_routes
 from src.backend.api_gateway.config import Settings
+from src.backend.api_gateway.main import create_app
 
 def initialize_routes(app: FastAPI) -> None:
     """
@@ -24,7 +25,14 @@ def initialize_routes(app: FastAPI) -> None:
     # Import the setup_routes function from the routes module
     setup_routes(app)
 
-# No application is instantiated at import time: doing so created a circular
-# import with main.py (F-GW-1). The application is built by create_app() in
-# main.py, which wires routes via setup_routes(); initialize_routes above
-# remains available for callers that construct the app explicitly.
+# The following code is not typically included in an __init__.py file,
+# but is added here to demonstrate how the initialize_routes function would be used.
+
+# Create the FastAPI application instance
+app = create_app()
+
+# Initialize the routes
+initialize_routes(app)
+
+# Note: In a real-world scenario, the app creation and route initialization
+# would typically be done in the main.py file or a separate application factory function.

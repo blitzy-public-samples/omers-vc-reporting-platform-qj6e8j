@@ -26,14 +26,17 @@ from src.backend.authentication_service.app.security import (
     install_security_logging,
 )
 
-# Service identifier attached to every security-event record so the security
-# dashboard can break signals down per service (FR-8.5 / FR-10.6).
-SERVICE_NAME = "api_gateway"
-
-# Structured security-event logging (FR-8.5 / FR-10.6): include timestamp, level,
-# and logger name. force=True guarantees this format even though the app package
-# (app/__init__.py) already called basicConfig with the default format.
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s", force=True)
+# Structured security-event logging (FR-8.5 / FR-10.6): configure only the
+# dedicated "omers.security" logger; root handlers are left to the host.
+_security_logger = logging.getLogger("omers.security")
+if not _security_logger.handlers:
+    _security_handler = logging.StreamHandler()
+    _security_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    )
+    _security_logger.addHandler(_security_handler)
+    _security_logger.setLevel(logging.INFO)
+    _security_logger.propagate = False
 logger = logging.getLogger(__name__)
 
 def create_app() -> FastAPI:

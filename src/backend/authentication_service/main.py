@@ -27,11 +27,17 @@ from src.backend.authentication_service.app.security import (
 # FastAPI version: 0.68.1
 # Uvicorn version: 0.15.0
 
-# Structured security-event logging (FR-8.5 / FR-10.6): configure the root
-# handler so security records carry timestamp, level, and logger name instead
-# of the bare last-resort format. force=True guarantees this format even if an
-# imported module already configured root logging.
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s", force=True)
+# Structured security-event logging (FR-8.5 / FR-10.6): configure only the
+# dedicated "omers.security" logger; root handlers are left to the host.
+_security_logger = logging.getLogger("omers.security")
+if not _security_logger.handlers:
+    _security_handler = logging.StreamHandler()
+    _security_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    )
+    _security_logger.addHandler(_security_handler)
+    _security_logger.setLevel(logging.INFO)
+    _security_logger.propagate = False
 
 def create_app() -> FastAPI:
     """

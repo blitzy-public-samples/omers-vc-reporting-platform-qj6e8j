@@ -20,10 +20,10 @@ databases==0.5.2
 asyncpg==0.24.0
 
 # Python-dotenv for loading environment variables
-python-dotenv==1.0.1
+python-dotenv==1.2.2
 
 # Requests for making HTTP requests (used in tests)
-requests==2.32.4
+requests==2.34.2
 
 # Alembic for database migrations
 alembic==1.7.3

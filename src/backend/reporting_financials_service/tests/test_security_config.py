@@ -1,69 +1,61 @@
-"""Security regression tests for reporting-financials configuration.
+"""Security regression tests for reporting-financials configuration (CWE-798/CWE-259).
 
-Covers the weak-secret remediation (CWE-798 / CWE-259): JWT_SECRET_KEY must be
-required from the environment with a >= 32 char minimum and no insecure default,
-and the JWT algorithm must remain restricted to HS256 (guards the
-algorithm-confusion class, CVE-2022-29217).
+Verifies that ``JWT_SECRET_KEY`` is required from the environment with a 32-character
+minimum and has no insecure default, and that the JWT algorithm stays restricted to
+HS256. The settings class is instantiated directly (``Config(_env_file=None)``) so each
+case is stateless and self-contained -- no module reload and no shared-environment mutation.
 """
-
-import os
-import importlib
 
 import pytest
 import pydantic
 
-import src.backend.reporting_financials_service.config as config_module
+from src.backend.reporting_financials_service.config import Config
 
 MIN_SECRET_LEN = 32
+_VALID_DB_URL = "postgresql://testuser:testpass@localhost:5432/testdb"
+
+
+def _make_config(**overrides):
+    # Instantiate the settings class directly; no .env file, no module reload.
+    return Config(_env_file=None, **overrides)
 
 
 def test_jwt_algorithm_is_hs256():
-    # Always-available config invariant (no PyJWT dependency in this service).
-    from src.backend.reporting_financials_service.config import JWT_ALGORITHM
-
-    assert JWT_ALGORITHM == "HS256"
+    cfg = _make_config(JWT_SECRET_KEY="x" * MIN_SECRET_LEN, DATABASE_URL=_VALID_DB_URL)
+    assert cfg.JWT_ALGORITHM == "HS256"
 
 
-def test_secret_required_from_env_no_insecure_default():
-    # With a valid key present (provisioned by conftest), config resolves to the
-    # env-supplied value and NOT to any weak built-in default.
-    importlib.reload(config_module)
-    resolved = config_module.config.JWT_SECRET_KEY.get_secret_value()
-    assert resolved == os.environ["JWT_SECRET_KEY"]
+def test_secret_required_from_env_no_insecure_default(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET_KEY", "e" * MIN_SECRET_LEN)
+    monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
+    cfg = _make_config()
+    resolved = cfg.JWT_SECRET_KEY.get_secret_value()
+    assert resolved == "e" * MIN_SECRET_LEN
     assert len(resolved) >= MIN_SECRET_LEN
 
 
-@pytest.fixture
-def restore_config():
-    # Restore a valid config for subsequent tests/modules after a negative case.
-    yield
-    os.environ["JWT_SECRET_KEY"] = "x" * MIN_SECRET_LEN
-    importlib.reload(config_module)
-
-
-def test_secret_absent_fails_closed(monkeypatch, restore_config):
+def test_secret_absent_fails_closed(monkeypatch):
     monkeypatch.delenv("JWT_SECRET_KEY", raising=False)
-    with pytest.raises((pydantic.ValidationError, ValueError)):
-        importlib.reload(config_module)
+    monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
+    with pytest.raises(pydantic.ValidationError):
+        _make_config()
 
 
-def test_secret_too_short_fails_closed(monkeypatch, restore_config):
+def test_secret_too_short_fails_closed(monkeypatch):
     monkeypatch.setenv("JWT_SECRET_KEY", "x" * 8)
-    with pytest.raises((pydantic.ValidationError, ValueError)):
-        importlib.reload(config_module)
+    monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
+    with pytest.raises(pydantic.ValidationError):
+        _make_config()
 
 
 def test_jwt_algorithm_restriction_regression():
-    # This service has no PyJWT dependency and no decode call site of its own, so
-    # skip the round-trip when PyJWT is absent; the config invariant above always runs.
+    # PyJWT is not a dependency of this service; skip the round-trip when it is absent.
     jwt = pytest.importorskip("jwt")
-    importlib.reload(config_module)
-    key = config_module.config.JWT_SECRET_KEY.get_secret_value()
-    algorithm = config_module.JWT_ALGORITHM
+    key = "x" * MIN_SECRET_LEN
+    cfg = _make_config(JWT_SECRET_KEY=key, DATABASE_URL=_VALID_DB_URL)
+    assert cfg.JWT_ALGORITHM == "HS256"
 
-    assert algorithm == "HS256"
-
-    token = jwt.encode({"sub": "user-1"}, key, algorithm=algorithm)
+    token = jwt.encode({"sub": "user-1"}, key, algorithm=cfg.JWT_ALGORITHM)
     assert jwt.decode(token, key, algorithms=["HS256"]).get("sub") == "user-1"
 
     forged = jwt.encode({"sub": "attacker"}, key=None, algorithm="none")

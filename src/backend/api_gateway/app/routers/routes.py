@@ -2,7 +2,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Optional
 from datetime import date
 from src.backend.api_gateway.app.models.models import ExampleModel, Company, MetricsInput, QuarterlyReportingFinancials, QuarterlyReportingMetrics
+from src.backend.api_gateway.app.routers import initialize_routes
 from src.backend.api_gateway.config import Settings
+from src.backend.api_gateway.main import create_app
 from fastapi import FastAPI  # version 0.70.0
 
 # Initialize router
@@ -177,3 +179,6 @@ def setup_routes(app: FastAPI) -> None:
 
     # Add the routes to the FastAPI application instance
     app.include_router(router, prefix="/v1", tags=["api"])
+
+# Initialize routes
+initialize_routes(setup_routes)

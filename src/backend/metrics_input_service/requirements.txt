@@ -1,5 +1,9 @@
 # Requirements for the Metrics Input Service
 
+# FastAPI web framework and the uvicorn ASGI server that runs the application (container CMD).
+fastapi==0.125.0
+uvicorn==0.15.0
+
 # SQLAlchemy is used for ORM operations to define and interact with the PostgreSQL database tables.
 sqlalchemy==1.4.22
 
