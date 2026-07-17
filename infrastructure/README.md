@@ -106,6 +106,10 @@ To manually trigger a deployment, run:
 
 Ensure you have the necessary permissions and environment variables set before running the script.
 
+### Database Administrator Password (Provisioned at Apply Time)
+
+The PostgreSQL administrator password is no longer stored in the Terraform configuration; it must be supplied at apply time through the sensitive Terraform variable `postgresql_admin_password` (declared in `variables.tf`). Provide it as a secure pipeline secret — for example via the `backend-secrets` variable group referenced in `azure-pipelines.yml`, or as a `TF_VAR_postgresql_admin_password` environment variable that Terraform reads automatically — so that it is never committed to source control. This is a one-time deployment-coordination step required before running `terraform apply`.
+
 ## Monitoring and Maintenance
 
 Azure Monitor is used for monitoring the infrastructure and application performance. Key metrics and logs are collected and can be viewed in the Azure Portal.

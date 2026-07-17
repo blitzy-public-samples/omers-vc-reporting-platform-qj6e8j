@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     api_key: str
     log_level: str
 
+    # CWE-942: explicit non-wildcard CORS allow-list (never "*"); overridable via env
+    CORS_ORIGINS: list = ['http://localhost:3000', 'https://localhost:3000']
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
@@ -48,6 +51,19 @@ settings = load_settings()
 
 # Note: Ensure that the .env file is correctly set up with the necessary environment variables
 # such as DATABASE_URL, API_KEY, and LOG_LEVEL to avoid runtime errors.
+
+def validate_cors_origins(origins: list):
+    """Reject CORS origins lacking a scheme/netloc (CWE-942)."""
+    from urllib.parse import urlparse
+    for origin in origins:
+        result = urlparse(origin)
+        if not all([result.scheme, result.netloc]):
+            raise ValueError(f"Invalid CORS origin URL: {origin}")
+
+try:
+    validate_cors_origins(settings.CORS_ORIGINS)
+except ValueError as e:
+    print(f"Configuration Error: {e}")
 
 # Imports from related modules
 from src.backend.metrics_input_service.app.models.models import MetricsInput

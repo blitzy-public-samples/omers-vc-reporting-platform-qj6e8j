@@ -17,8 +17,9 @@ The Authentication Service is a critical component of the backend platform, resp
    cp .env.sample .env
    ```
    Edit the `.env` file and provide values for:
-   - `SECRET_KEY`: A secret key used for JWT token signing. Must be kept secret.
-   - `DATABASE_URL`: Connection string for the PostgreSQL database.
+   - `SECRET_KEY`: A secret key used for JWT token signing. Required (no default); must be at least 32 characters. Must be kept secret.
+   - `DATABASE_URL`: Connection string for the PostgreSQL database. Required (no default).
+   - `CORS_ORIGINS`: Comma-separated list of explicit allowed origins (no wildcard `*`); defaults to `http://localhost:3000` if unset.
    - `TOKEN_EXPIRATION`: JWT token expiration time in minutes.
    - `DEBUG`: Set to 'True' for development environments, 'False' for production.
 
@@ -31,6 +32,8 @@ The Authentication Service is a critical component of the backend platform, resp
    ```bash
    docker run -p 8000:8000 --env-file .env authentication-service
    ```
+
+   **Note:** The container image runs as a dedicated non-root user on the `python:3.9-slim` base image.
 
 5. Access the FastAPI application through the specified host and port (default: http://localhost:8000).
 
@@ -67,8 +70,9 @@ Refer to the Swagger documentation at `/docs` for detailed API usage and endpoin
 
 The service uses environment variables for configuration. Key variables include:
 
-- `SECRET_KEY`: Used for JWT token signing. Must be kept secret.
-- `DATABASE_URL`: Connection string for the PostgreSQL database.
+- `SECRET_KEY`: Used for JWT token signing. **Required** (no default) and must be **at least 32 characters** long, or the service fails to start. Must be kept secret.
+- `DATABASE_URL`: Connection string for the PostgreSQL database. **Required** (no default).
+- `CORS_ORIGINS`: Comma-separated list of explicit allowed origins for CORS (for example, `https://app.example.com`). Must **not** be a wildcard (`*`); defaults to `http://localhost:3000` if unset.
 - `TOKEN_EXPIRATION`: JWT token expiration time in minutes.
 - `DEBUG`: Set to 'True' for development environments, 'False' for production.
 
