@@ -48,6 +48,20 @@ The Metrics Input Service is a crucial component of the OMERS Ventures backend p
    pytest
    ```
 
+## Environment Variables
+
+Configure these variables in your `.env` file (copy from `.env.sample`, per Setup step 5) or in the deployment environment. The service's `Settings` class (`config.py`) requires `DATABASE_URL`, `API_KEY`, and `LOG_LEVEL` — the service fails to start if any required variable is unset.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL SQLAlchemy connection string. No default; the service fails to start if unset. |
+| `API_KEY` | Yes | API key for authenticating with external services. No default. |
+| `LOG_LEVEL` | Yes | Application logging level (e.g. `info`). No default. |
+| `CORS_ORIGINS` | No | Explicit, non-wildcard list of browser origins allowed to call this API (CWE-942 CORS hardening). `config.py` supplies a safe localhost default (`["http://localhost:3000","https://localhost:3000"]`), so it is optional. Override per environment using a **JSON array** (e.g. `CORS_ORIGINS=["https://app.example.com"]`). Never use `*`. |
+| `JWT_SECRET_KEY` | As applicable | Secret key used for JWT token handling where applicable (see `.env.sample`). Supply via the environment; never commit a real value. |
+
+The local development template is `.env.sample` — copy it to `.env` (see Setup step 5) and fill in real values per environment. Never commit real secrets to version control.
+
 ## Usage Instructions
 
 1. Access the API documentation at `http://localhost:8000/docs` to view available endpoints and their specifications.
@@ -82,6 +96,7 @@ For detailed API documentation, refer to the Swagger UI available at `/docs` whe
 - Role-Based Access Control (RBAC) is implemented to restrict data access based on user roles.
 - Sensitive data is encrypted at rest and in transit.
 - Input validation is performed on all submitted data to prevent injection attacks.
+- The service container runs as a non-root user (`USER myuser` in the Dockerfile) for least-privilege execution.
 
 ## Troubleshooting
 
