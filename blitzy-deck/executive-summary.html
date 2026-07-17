@@ -318,6 +318,8 @@
       margin-top: var(--gap);
       border: 1px solid var(--border);
       border-radius: var(--radius);
+      /* Narrow viewports: scroll wide tables horizontally so no column is
+         unreachable; vertical stays clipped to the radius. */
       overflow-x: auto;
       overflow-y: hidden;
       -webkit-overflow-scrolling: touch;
@@ -762,7 +764,7 @@
           <li class="fragment"><strong>Pydantic kept on the v1 line</strong> (1.10.13) &mdash; the <span class="mono">BaseSettings</span> API is preserved; <strong>no</strong> Pydantic v2 migration.</li>
           <li class="fragment"><strong>FastAPI capped <span class="mono">&lt; 0.126.0</span></strong> (pinned 0.125.0) &mdash; retains Pydantic v1 support while clearing CVE-2024-24762.</li>
           <li class="fragment"><strong>Minimal Change Clause honored</strong> &mdash; version bumps only; <strong>no</strong> package replacements; <strong>no</strong> public-API contract changes.</li>
-          <li class="fragment"><strong>No import statements changed</strong> &mdash; every upgrade stays within a compatible API line.</li>
+          <li class="fragment"><strong>No import statements changed by the dependency upgrades</strong> &mdash; every upgrade stays within a compatible API line.</li>
         </ul>
         <p class="caption fragment">Trade-off: because the FastAPI/Pydantic-v1 envelope is frozen, a small set of <span class="mono">starlette</span>/<span class="mono">click</span> advisories cannot be cleared without breaching it; these remain under documented CI waivers (see next slide).</p>
       </section>

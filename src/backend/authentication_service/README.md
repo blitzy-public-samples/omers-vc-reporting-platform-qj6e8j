@@ -74,7 +74,7 @@ The service uses environment variables for configuration. Key variables include:
 
 ## Dependencies
 
-This service relies on the following key dependencies:
+This service targets **Python 3.10+** (matching the service container's `python:3.10-slim` base image) and relies on the following key dependencies:
 
 - `python-dotenv (1.0.1)`: For loading environment variables from a .env file.
 - `PyJWT (2.13.0)`: For encoding and decoding JSON Web Tokens.

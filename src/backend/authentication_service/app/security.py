@@ -122,6 +122,9 @@ def log_security_event(service: str, event: str, outcome: str, correlation_id: s
         "security_event": sanitize(event),
         "service": sanitize(service),
         "outcome": sanitize(outcome),
+        # CWE-117: the correlation id may originate from an attacker-influenced
+        # X-Correlation-ID/X-Request-ID header, so it is sanitized (control chars
+        # stripped, length bounded) exactly like the other logged fields below.
         "correlation_id": sanitize(correlation_id),
     }
     for key, value in fields.items():
@@ -150,6 +153,26 @@ def get_correlation_id(request) -> str:
     return correlation_id
 
 
+def _configure_security_logger() -> None:
+    """
+    Attach a timestamped stream handler to the dedicated security logger exactly once.
+
+    Guarantees every security-event record carries a timestamp (FR-8.5 / FR-10.6) on every
+    application construction path, not only the ones that pre-configure the logger. Idempotent:
+    a handler is added only when none is present, so paths that already configured the logger
+    (e.g. a service ``main.py`` at import time) are not double-wired and records are not
+    duplicated. ``propagate`` is disabled so records are emitted once, through this handler only.
+    """
+    if not _security_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+        )
+        _security_logger.addHandler(handler)
+        _security_logger.setLevel(logging.INFO)
+        _security_logger.propagate = False
+
+
 def install_security_logging(app, service: str, allowed_origins) -> None:
     """
     Install the shared security-event contract on a FastAPI app (used by every construction path).
@@ -161,6 +184,10 @@ def install_security_logging(app, service: str, allowed_origins) -> None:
     ``CORSMiddleware`` does not echo an unlisted origin. The middleware never alters the response
     status or body; it only adds the correlation id to the response headers and emits the signal.
     """
+    # Ensure the security logger emits timestamped, single-copy records regardless of which
+    # construction path installed the logging (FR-8.5 / FR-10.6); idempotent and safe to re-call.
+    _configure_security_logger()
+
     normalized_origins = set(allowed_origins or [])
 
     @app.middleware("http")

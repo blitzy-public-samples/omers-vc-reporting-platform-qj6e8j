@@ -4,7 +4,7 @@ This README provides an overview and instructions for setting up and running the
 
 ## Overview
 
-The API Gateway is built using FastAPI, a modern, fast (high-performance) web framework for building APIs with Python 3.6+ based on standard Python type hints. It serves as the entry point for all client requests to the backend services, providing a unified interface for data ingestion and retrieval from the PostgreSQL database.
+The API Gateway is built using FastAPI, a modern, fast (high-performance) web framework for building APIs with Python 3.9+ based on standard Python type hints. It serves as the entry point for all client requests to the backend services, providing a unified interface for data ingestion and retrieval from the PostgreSQL database.
 
 ## Features
 

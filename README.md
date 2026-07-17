@@ -40,7 +40,7 @@ Wildcard CORS (`*`) is no longer permitted; every service validates its origin a
 | Authentication Service (`src/backend/authentication_service`) | `CORS_ORIGINS` | Comma-separated, e.g. `http://localhost:3000,https://app.omersventures.com` | `http://localhost:3000` |
 | API Gateway (`src/backend/api_gateway`) | `CORS_ALLOW_ORIGINS` | Comma-separated | `http://localhost:3000` (the code binds this name to match `.env.sample`; the previous `CORS_ORIGINS` mismatch was corrected) |
 | Reporting Financials Service (`src/backend/reporting_financials_service`) | `CORS_ORIGINS` | Comma-separated | `http://localhost:3000` |
-| Metrics Input Service (`src/backend/metrics_input_service`) | `CORS_ORIGINS` | **JSON array**, e.g. `["https://app.example.com"]` | `["http://localhost:3000","https://localhost:3000"]` |
+| Metrics Input Service (`src/backend/metrics_input_service`) | `CORS_ORIGINS` | Comma-separated, e.g. `https://app.example.com,https://admin.example.com` (a JSON array is also accepted) | `http://localhost:3000,https://localhost:3000` |
 | Reporting Metrics Service (`src/backend/reporting_metrics_service`) | `BACKEND_CORS_ORIGINS` | **JSON array** | `["http://localhost:3000","https://localhost:3000","http://localhost","https://localhost"]` |
 
 All five services ship a safe non-wildcard default, so `CORS`/`BACKEND_CORS_ORIGINS` is optional for local development but must be set to the real front-end origins before deploying to any browser-facing environment.

@@ -61,7 +61,7 @@ Configure these variables in your `.env` file (copy from `.env.sample`, per Setu
 | `DATABASE_URL` | Yes | PostgreSQL SQLAlchemy connection string. No default; the service fails to start if unset. |
 | `API_KEY` | Yes | API key for authenticating with external services. No default. |
 | `LOG_LEVEL` | Yes | Application logging level (e.g. `info`). No default. |
-| `CORS_ORIGINS` | No | Explicit, non-wildcard list of browser origins allowed to call this API (CWE-942 CORS hardening). `config.py` supplies a safe localhost default (`["http://localhost:3000","https://localhost:3000"]`), so it is optional. Override per environment using a **JSON array** (e.g. `CORS_ORIGINS=["https://app.example.com"]`). Never use `*`. |
+| `CORS_ORIGINS` | No | Explicit, non-wildcard list of browser origins allowed to call this API (CWE-942 CORS hardening). `config.py` supplies a safe localhost default (`http://localhost:3000,https://localhost:3000`), so it is optional. Override per environment using a **comma-separated list** of origins — the convention shared with the API gateway and reporting-financials services — e.g. `CORS_ORIGINS=https://app.example.com,https://admin.example.com`. A JSON array (e.g. `["https://app.example.com"]`) is also accepted. Never use `*`. |
 
 The `Settings` class (`config.py`) defines exactly these four fields — `database_url`, `api_key`, `log_level` (all required), and `CORS_ORIGINS` (optional, with a safe default). It does **not** define a JWT signing key or any OAuth/RBAC setting; this service performs no JWT handling of its own.
 

@@ -37,12 +37,16 @@ RUN pip install --user --no-cache-dir -r requirements.txt
 
 FROM python:3.9-slim
 WORKDIR /app
-COPY --from=builder /root/.local /root/.local
-COPY . .
-ENV PATH=/root/.local/bin:$PATH
-
-# Run as non-root user for better security
+# Run as non-root user for better security (CWE-250 least privilege)
 RUN adduser --disabled-password --gecos '' appuser
+
+# Relocate pip --user packages into the non-root user's HOME so they stay
+# reachable after dropping privileges (/root/.local is mode 700 and cannot be
+# traversed by appuser, which prevented uvicorn from launching).
+COPY --from=builder --chown=appuser:appuser /root/.local /home/appuser/.local
+COPY . .
+ENV PATH=/home/appuser/.local/bin:$PATH
+
 USER appuser
 
 # Command to run the application

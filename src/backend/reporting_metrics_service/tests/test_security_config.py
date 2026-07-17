@@ -140,3 +140,24 @@ def test_backend_cors_explicit_allowlist_accepted():
     )
     assert cfg.BACKEND_CORS_ORIGINS == ["https://app.example.com"]
     assert "*" not in cfg.BACKEND_CORS_ORIGINS
+
+
+def test_jwt_algorithm_restriction():
+    """Guarded regression: enforcing algorithms=['HS256'] rejects other-algorithm tokens.
+
+    PyJWT is not a dependency of this service, so skip cleanly when unavailable.
+    """
+    jwt = pytest.importorskip("jwt")
+    key = "A" * 40  # >= 32 chars
+
+    token = jwt.encode({"sub": "user123"}, key, algorithm="HS256")
+    if isinstance(token, bytes):  # older PyJWT returns bytes
+        token = token.decode("utf-8")
+    decoded = jwt.decode(token, key, algorithms=["HS256"])
+    assert decoded["sub"] == "user123"
+
+    other_alg_token = jwt.encode({"sub": "user123"}, key, algorithm="HS512")
+    if isinstance(other_alg_token, bytes):
+        other_alg_token = other_alg_token.decode("utf-8")
+    with pytest.raises(jwt.exceptions.InvalidAlgorithmError):
+        jwt.decode(other_alg_token, key, algorithms=["HS256"])

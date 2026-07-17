@@ -8,7 +8,9 @@ Requirements addressed:
   Ensure the API supports configuration management to handle different environments and settings.
 """
 
-from pydantic import BaseSettings, validator  # version 1.8.2
+from typing import List, Union
+
+from pydantic import BaseSettings, validator  # version 1.10.13
 
 class Settings(BaseSettings):
     """
@@ -24,10 +26,13 @@ class Settings(BaseSettings):
     api_key: str
     log_level: str
 
-    # CWE-942: explicit non-wildcard CORS allow-list (never "*"); overridable via env
-    CORS_ORIGINS: list = ['http://localhost:3000', 'https://localhost:3000']
+    # CWE-942: explicit non-wildcard CORS allow-list (never "*"); overridable via env.
+    # Union[str, List[str]] keeps Pydantic v1 from JSON-parsing the env var, so a
+    # comma-separated CORS_ORIGINS string reaches the validator (see .env.sample / README),
+    # matching the api_gateway / reporting_financials convention.
+    CORS_ORIGINS: Union[str, List[str]] = ['http://localhost:3000', 'https://localhost:3000']
 
-    @validator('CORS_ORIGINS', pre=True, always=True)
+    @validator('CORS_ORIGINS', pre=True, always=True, allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
     def _validate_cors_origins(cls, v):
         # CWE-942: reject wildcard, empty, or malformed origins (fail closed). The env
         # value is a JSON array (canonical, see .env.sample); a comma-separated string is

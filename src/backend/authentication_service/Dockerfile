@@ -1,4 +1,4 @@
-# Use a maintained Python base image (python:3.9-slim reached end-of-life; CWE-1104)
+# Use a maintained Python base image (python:3.8-slim reached end-of-life; CWE-1104)
 FROM python:3.10-slim
 
 # Set the working directory in the container

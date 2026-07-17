@@ -110,16 +110,18 @@ Dependency-vulnerability scan. In CI this runs per manifest on each service's ac
 pip-audit -r src/backend/<service>/requirements.txt
 ```
 
-Security and regression tests (per service; pytest does not enter watch mode). Some suites currently skip or fail to collect because of the pre-existing, out-of-scope defects listed under [Known Issues and Deferred Items](#known-issues-and-deferred-items); those suites reference the specific blocker so it stays visible rather than passing silently:
+Security and regression tests (per service; pytest does not enter watch mode). Run from the repository root so the tests' absolute `src.backend.*` imports resolve (running `python -m pytest` after `cd`-ing into a service directory removes the repository root from `sys.path` and errors at collection). Some suites currently fail to collect, or have pre-existing failures, because of the out-of-scope defects listed under [Known Issues and Deferred Items](#known-issues-and-deferred-items); those suites reference the specific blocker so it stays visible rather than passing silently:
 
 ```bash
-cd src/backend/<service> && python -m pytest -v --tb=short
+python -m pytest src/backend/<service>/tests -v --tb=short
 ```
 
-Infrastructure validation:
+Infrastructure validation. `terraform validate` succeeds ("Success! The configuration is valid."). `terraform fmt -check` is a formatting-only check that reports pre-existing unformatted files (currently `backend.tf`) and returns a non-zero exit code; it does not affect `terraform validate`. Run the two as separate commands so the `fmt` result does not mask the passing `validate`:
 
 ```bash
-cd infrastructure/terraform && terraform validate && terraform fmt -check
+cd infrastructure/terraform
+terraform validate          # Success! The configuration is valid.
+terraform fmt -check        # non-zero if pre-existing files (e.g. backend.tf) are unformatted (formatting-only)
 ```
 
 Container non-root verification (expect a non-zero uid):
@@ -148,11 +150,11 @@ This section discloses the advisories and defects that remain open after the eng
 - **`click`** (PYSEC-2026-2132) — on the Python 3.9 services (`api_gateway`, `metrics_input_service`) only; the fix requires Python `>= 3.10`.
 - **`pytest`** (PYSEC-2026-1845) and **`loguru`** (PYSEC-2022-14) — AAP-deferred (see the follow-ups below).
 
-**Pre-existing, out-of-scope defects that block some checks.** These are retained for separately scoped work; the affected test suites skip with a reference to the specific blocker rather than passing silently:
+**Pre-existing, out-of-scope defects that affect some checks.** These are retained for separately scoped work. The security-regression suites are written to stay meaningful despite them — either by degrading gracefully or by exercising the settings class directly — so they pass rather than passing silently or masking the blocker:
 
 - The reporting-financials application module misuses `Config.DATABASE_URL` (a Pydantic v1 class-attribute access that raises `AttributeError`), so importing the full application fails and its full-application test (`tests/test_financials.py`) does not collect. Its security regression suites (`tests/test_security_config.py`, `tests/test_security_cors.py`) pass, because they exercise the `Config` settings class and the CORS application factory directly.
 - The reporting-metrics application imports `UUID` from `sqlalchemy` at the top level, which the pinned SQLAlchemy 1.4.x does not expose (`ImportError`), so its full-application test (`tests/test_metrics.py`) does not collect; its `tests/test_security_config.py` suite passes by exercising the `Settings` class directly.
-- The metrics-input application package contains a stray syntax fragment in `app/__init__.py` (`SyntaxError`), so the full app cannot import; its CORS regression suite therefore exercises the real `config.py` origin validator directly (and documents the app-import blocker) rather than binding live middleware.
+- The metrics-input application package now imports cleanly (the stray `app/__init__.py` syntax fragment and the `config` ↔ `app.routers.metrics` circular import have been removed), so the full application builds via `main.create_app`. Its CORS regression suite binds the live `CORSMiddleware` through `main.create_app` (and also exercises the `config.py` origin validator directly), and its full `tests/` suite passes (15 passed; 2 async cases skipped for lack of an async plugin).
 - The `terraform validate` verification step above currently fails on pre-existing undeclared-resource references in `infrastructure/terraform/outputs.tf` (its resource names do not match those declared in `main.tf`) and on cross-provider resources that are never declared. The `main.tf` credential fix itself validates in isolation (with `backend.tf` and `variables.tf`); the broader Terraform-layer consistency is separately scoped work.
 
 **Pre-existing release-blockers requiring separately authorized architectural work.** These defects were present in the codebase before this engagement (confirmed against the committed baseline) and are not attributable to the security-remediation diff. Their fixes fall outside the security-fix scope — the AAP restricts this engagement to the enumerated vulnerability classes and explicitly defers the architectural authentication rework (per the scope boundaries in AAP §0.8). They are recorded here so the delivery gate is not read as a clean-slate claim:
@@ -177,6 +179,9 @@ This section discloses the advisories and defects that remain open after the eng
 - **Broad observability build-out** (distributed tracing, Prometheus metrics wiring, Application Insights integration) — beyond the security-event logging added in this engagement — follow-up.
 - **No dependency lockfiles exist** — the manifests pin only top-level packages, so transitive versions float; introducing lockfiles is a recommended follow-up.
 - **Masked pipeline-secret → `TF_VAR_postgresql_admin_password` mapping** — the plaintext database password is removed from source and must be supplied at apply time via the sensitive `postgresql_admin_password` variable (see [`infrastructure/README.md`](infrastructure/README.md)). The `backend-secrets` variable group is linked in `azure-pipelines.yml`, but the pipeline's `Deploy` stage ships to AKS via the `Kubernetes@1` task and does not invoke Terraform, so no job maps a masked secret into `TF_VAR_postgresql_admin_password` today. Wiring that masked mapping into an authorized Terraform-apply/deploy job is a deployment-coordination follow-up.
+- **Hardened-container application boot (packaging)** — the two hardened service Dockerfiles copy only the service subdirectory (`COPY . .`) while the application imports via repository-root-absolute `src.backend.*` paths, so a built image cannot resolve the `src` package at startup (`ModuleNotFoundError: No module named 'src'`). The container-hardening change itself (non-root `USER` + supported base image) is correct and independent of this pre-existing packaging gap; packaging the `src` tree into the image (or installing the package) is a follow-up.
+- **Outbound FX-rate request timeout** — the data-transformation function's outbound `requests.get(...)` call (`src/functions/data_transformation/main.py`) has no request timeout, so a slow upstream can hang the call (mitigated in production only by the Azure Functions platform timeout). The `requests` dependency was upgraded to a patched release in this engagement; adding an explicit `timeout=(connect, read)` remains a follow-up.
+- **Unbounded list queries and latent N+1 in the reporting services** — the reporting list endpoints use unbounded `query.all()` (no limit/offset) and return raw SQLAlchemy models via `response_model` over lazy relationships; these become relevant once the pre-existing import defects above are repaired, at which point pagination and dedicated response schemas are a recommended follow-up.
 
 ## Rationale and Decision Log
 
