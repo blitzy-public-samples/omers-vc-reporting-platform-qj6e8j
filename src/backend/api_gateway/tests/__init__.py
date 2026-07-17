@@ -11,6 +11,18 @@ Requirements Addressed:
                to ensure the reliability and robustness of the backend platform.
 """
 
+import os
+
+# Fail-closed configuration (CWE-798 / CWE-259): api_gateway config.py instantiates
+# Settings at import time and requires DATABASE_URL, API_KEY, and a >= 32 char
+# SECRET_KEY. This package initializer imports create_app below (which triggers that
+# construction) while pytest is still resolving test-module names, before any per-file
+# provisioning runs. Provision the required environment here first so the package
+# collects in a clean environment; setdefault preserves any externally supplied value.
+os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
+os.environ.setdefault("API_KEY", "test-api-key")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-characters-long")
+
 import pytest
 from httpx import AsyncClient
 from fastapi.testclient import TestClient

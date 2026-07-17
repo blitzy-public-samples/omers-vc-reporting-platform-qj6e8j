@@ -1,104 +1,35 @@
-"""
-This file initializes the test suite for the reporting metrics service, ensuring that all test modules are correctly imported and executed. It sets up the necessary environment for running unit tests on the reporting metrics service components.
+"""Test-suite package initializer for the Reporting Metrics Service.
 
-Requirements addressed:
-- Automated Testing and Quality Assurance (Technical Requirements/Feature 13: Automated Testing and Quality Assurance)
-  Description: Implement automated testing frameworks and quality assurance processes to ensure the reliability and robustness of the backend platform.
+Security remediation (CWE-798 / CWE-259, fail-closed configuration): this
+initializer provisions the environment required by ``config.py`` — ``SECRET_KEY``
+(>= 32 chars, required with no insecure default) and ``DATABASE_URL`` (required,
+validated as a PostgreSQL DSN) — at the very top of package import, before any
+test module in this package is collected. pytest imports this package initializer
+while resolving fully-qualified test module names, so the environment must be
+present at this point for ``config.Settings()`` to construct during collection.
 
-Dependencies:
-- pytest (version 6.2.4): Framework for writing and executing test cases.
-- test_get_reporting_metrics (from src/backend/reporting_metrics_service/tests/test_metrics.py): To test the functionality of the API endpoint for retrieving reporting metrics data.
+This initializer is intentionally side-effect-free beyond environment
+provisioning. It does NOT import the application factory (``main.app``) or any
+module under the ``app`` package. Those imports have a pre-existing, out-of-scope
+import-time defect (``app/models/models.py`` does ``from sqlalchemy import UUID``,
+which SQLAlchemy 1.4.x does not provide; ``app/database.py`` / ``app/schemas.py``
+are absent) that is unrelated to the security remediation. Keeping this file free
+of the application import chain is what lets the configuration security regression
+test (``test_security_config.py``) import ``config`` and collect cleanly. The
+broken application import is not masked: ``test_metrics.py`` still imports the
+application chain directly, so that pre-existing defect continues to surface
+loudly at its own collection. Rationale detail lives in
+``docs/security/decision-log.md``.
 """
 
 import os
 
-# Required from environment; config.Settings() fails closed without them (CWE-798/CWE-259).
+# Fail-closed signing key required by config.py (Field(..., min_length=32)).
+# CWE-798 / CWE-259: no insecure default is permitted; a real key must be supplied.
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-ci-only-0123456789")  # >= 32 chars
+
+# DATABASE_URL is required and validated as a PostgreSQL DSN in config.py; provide a
+# syntactically valid DSN so the settings object constructs during collection.
 os.environ.setdefault(
     "DATABASE_URL", "postgresql://testuser:testpass@localhost:5432/testdb"
 )
-
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-
-# Create a test database in memory
-SQLALCHEMY_DATABASE_URL = "sqlite://"
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
-    poolclass=StaticPool,
-)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-# Override the get_db dependency to use the test database
-def override_get_db():
-    try:
-        db = TestingSessionLocal()
-        yield db
-    finally:
-        db.close()
-
-# The reporting-metrics application package has a pre-existing, out-of-scope import-time
-# defect: app/models/models.py does `from sqlalchemy import ... UUID`, which SQLAlchemy
-# 1.4.x does not provide (no top-level UUID), and app/database.py / app/schemas.py are
-# absent. Per the checkpoint's security-test-quality requirement, this application import
-# is deliberately NOT wrapped in a masking `except ImportError` guard: a broken app import
-# must surface as a loud collection/runtime error, never be swallowed into
-# app=None/client=None (which would present a false-green suite). The underlying app
-# defect is separately tracked in docs/security/decision-log.md.
-from src.backend.reporting_metrics_service.app.models import ReportingMetrics
-from src.backend.reporting_metrics_service.main import app, get_db
-
-# Create tables in the test database
-ReportingMetrics.metadata.create_all(bind=engine)
-
-app.dependency_overrides[get_db] = override_get_db
-client = TestClient(app)
-
-# Setup function to initialize test data
-@pytest.fixture(scope="module")
-def setup_test_data():
-    # Insert test data into the database to simulate real-world scenarios
-    db = TestingSessionLocal()
-    try:
-        # Add test data here
-        # Example:
-        # test_metrics = ReportingMetrics(company_id="test_company_id", currency="USD", ...)
-        # db.add(test_metrics)
-        # db.commit()
-        pass
-    finally:
-        db.close()
-
-# Teardown function to clean up after tests
-@pytest.fixture(scope="module")
-def teardown_test_data():
-    yield
-    # Clean up test data after all tests have run
-    db = TestingSessionLocal()
-    try:
-        # Remove test data here
-        # Example:
-        # db.query(ReportingMetrics).filter(ReportingMetrics.company_id == "test_company_id").delete()
-        # db.commit()
-        pass
-    finally:
-        db.close()
-
-# Import test modules for discovery. Deliberately NOT wrapped in a masking guard: if
-# test_metrics (which imports the application chain) fails to import, that failure must
-# surface loudly rather than being silently swallowed.
-from .test_metrics import test_get_reporting_metrics
-
-# Define test suite
-def test_suite():
-    """
-    Run all tests for the reporting metrics service.
-    """
-    pytest.main(["-v", "src/backend/reporting_metrics_service/tests"])
-
-if __name__ == "__main__":
-    test_suite()

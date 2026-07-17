@@ -8,25 +8,23 @@ Requirements addressed:
 
 Dependencies:
 - pytest (version 6.2.4): Used for writing and executing unit tests.
-- test_create_metrics (from src/backend/metrics_input_service/tests/test_metrics.py):
-  Tests the creation of new financial metrics data entries via the API.
-- test_get_metrics (from src/backend/metrics_input_service/tests/test_metrics.py):
-  Tests the retrieval of financial metrics data based on specified query parameters.
 
-This file integrates and organizes test cases for the Metrics Input Service by:
-1. Importing test cases from test_metrics.py.
-2. Ensuring that pytest recognizes the test cases for execution.
-3. Preparing any necessary test fixtures or configurations.
+This package initializer is intentionally free of import-time side effects: pytest
+discovers the test modules in this directory automatically, so no test module is
+imported here. It only exposes optional shared fixtures for the test suite.
 """
 
 # Import pytest for test suite configuration
 import pytest
 
-# Import test cases from test_metrics.py
-from .test_metrics import test_create_metrics, test_get_metrics
-
-# Configure pytest to discover and run the imported test functions
-pytest.register_assert_rewrite('src.backend.metrics_input_service.tests.test_metrics')
+# Test modules are discovered automatically by pytest; this package __init__ must
+# remain free of import-time side effects. A prior revision eagerly imported
+# test_metrics here, which pulled in the application import chain (config.py imports
+# app.models/app.routers, and app/__init__.py has a pre-existing, out-of-scope
+# SyntaxError), aborting collection of every module in this package -- including the
+# CORS security regression test. The eager import has been removed so
+# test_security_cors.py collects; test_metrics.py still imports the application chain
+# directly, so that pre-existing defect continues to surface at its own collection.
 
 # Any additional test suite configuration or fixtures can be added here
 # For example:

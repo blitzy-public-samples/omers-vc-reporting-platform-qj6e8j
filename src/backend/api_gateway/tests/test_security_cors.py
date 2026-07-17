@@ -13,7 +13,10 @@ import os
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 os.environ.setdefault("API_KEY", "test-api-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-at-least-32-characters-long")
-os.environ.setdefault("CORS_ALLOW_ORIGINS", "http://localhost:3000")
+# Hard-set (not setdefault) so the configured allow-list is exactly the single origin
+# asserted below (ALLOWED_ORIGIN). create_app() reads this at construction time, so an
+# ambient CORS_ALLOW_ORIGINS cannot make the positive-reflection assertions non-deterministic.
+os.environ["CORS_ALLOW_ORIGINS"] = "http://localhost:3000"
 
 # The application uses absolute ``src.backend...`` imports; ensure the repository
 # root is importable regardless of the current working directory.
