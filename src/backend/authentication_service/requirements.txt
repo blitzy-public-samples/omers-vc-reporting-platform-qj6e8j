@@ -25,6 +25,10 @@ python-dotenv==1.2.2
 # Purpose: To provide a testing framework for writing and running test cases.
 pytest==6.2.5
 
+# Async compatibility layer
+# Purpose: constrain to the 3.x line for pytest 6.x plugin compatibility (pytest upgrade deferred)
+anyio<4
+
 # HTTP client for Python (used for testing)
 # Version: 2.27.1
 # Purpose: To make HTTP requests in test cases.

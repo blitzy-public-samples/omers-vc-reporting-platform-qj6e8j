@@ -63,7 +63,7 @@ The following environment variables are read by `config.py`. The service **fails
 
 - `DATABASE_URL` — **required** (no default); PostgreSQL connection string.
 - `SECRET_KEY` — **required** (no default); used for JWT signing.
-- `API_KEY` — **required** (no default); key used to authenticate API requests.
+- `API_KEY` — **required** (no default); API key value loaded into service configuration.
 - `CORS_ALLOW_ORIGINS` — comma-separated list of **explicit allowed origins** for CORS (e.g. `http://localhost:3000,https://app.omersventures.com`); **must NOT be a wildcard `*`**. Defaults to `http://localhost:3000` if unset. (Variable name is `CORS_ALLOW_ORIGINS`, matching `.env.sample`.)
 
 ## Running the API

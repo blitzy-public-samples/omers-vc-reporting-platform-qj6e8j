@@ -39,11 +39,21 @@ class Settings(BaseSettings):
     # JWT algorithm
     algorithm: str = Field(default="HS256", env='ALGORITHM')
 
-    @validator('cors_origins', pre=True)
+    @validator('cors_origins', pre=True, always=True)
     def _split_cors_origins(cls, v):
         # Accept comma-separated CORS_ALLOW_ORIGINS (see .env.sample) as an explicit list
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(',') if origin.strip()]
+            v = [origin.strip() for origin in v.split(',') if origin.strip()]
+        # Reject wildcard, empty, or malformed origins (CWE-942); require http(s) scheme and host
+        from urllib.parse import urlparse
+        if not v:
+            raise ValueError("CORS_ALLOW_ORIGINS must be a non-empty explicit allow-list; wildcard '*' is not permitted.")
+        for origin in v:
+            if origin == '*':
+                raise ValueError("Wildcard '*' CORS origin is not permitted with credentials (CWE-942).")
+            parsed = urlparse(origin)
+            if not (parsed.scheme in ('http', 'https') and parsed.netloc):
+                raise ValueError(f"Invalid CORS origin URL: {origin}")
         return v
 
     class Config:

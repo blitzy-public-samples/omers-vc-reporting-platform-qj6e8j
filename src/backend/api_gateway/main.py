@@ -9,8 +9,7 @@
 #   from the PostgreSQL database.
 
 import logging
-import uuid
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel  # version 1.8.2
 import jwt  # PyJWT version 2.3.0
@@ -18,7 +17,14 @@ import jwt  # PyJWT version 2.3.0
 from src.backend.api_gateway.app.models.models import ExampleModel, Company, MetricsInput, QuarterlyReportingFinancials, QuarterlyReportingMetrics
 from src.backend.api_gateway.app.routers.routes import setup_routes
 from src.backend.api_gateway.config import Settings
-from src.backend.authentication_service.app.security import generate_token, validate_token
+from src.backend.authentication_service.app.security import (
+    generate_token,
+    validate_token,
+    log_security_event,
+    get_correlation_id,
+    pseudonymize,
+    install_security_logging,
+)
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -51,19 +57,28 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Correlation-id propagation + scoped CORS-rejection security events (CWE-942)
+    install_security_logging(app, service="api_gateway", allowed_origins=settings.cors_origins)
+
     # Set up API routes
     setup_routes(app)
 
     # Integrate JWT token generation and validation
     @app.post("/token")
-    async def login_for_access_token(username: str, password: str):
+    async def login_for_access_token(request: Request, username: str, password: str):
         """
         Endpoint for generating JWT tokens for secure API access.
         """
         if not authenticate_user(username, password):
             # Security-event logging (FR-8.5 / FR-10.6)
-            correlation_id = str(uuid.uuid4())
-            logger.warning("security_event=authentication_failure correlation_id=%s username=%s", correlation_id, username)
+            # Username is pseudonymized (CWE-532 / CWE-117); one request-correlated event.
+            log_security_event(
+                service="api_gateway",
+                event="authentication_failure",
+                outcome="denied",
+                correlation_id=get_correlation_id(request),
+                subject=pseudonymize(username),
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
@@ -72,7 +87,7 @@ def create_app() -> FastAPI:
         access_token = generate_token(username)
         return {"access_token": access_token, "token_type": "bearer"}
 
-    async def get_current_user(token: str = Depends(validate_token)):
+    async def get_current_user(request: Request, token: str = Depends(validate_token)):
         """
         Dependency for validating JWT tokens to ensure secure API access.
         """
@@ -84,8 +99,13 @@ def create_app() -> FastAPI:
         username = validate_token(token)
         if username is None:
             # Security-event logging (FR-8.5 / FR-10.6)
-            correlation_id = str(uuid.uuid4())
-            logger.warning("security_event=token_validation_failure correlation_id=%s reason=missing_subject", correlation_id)
+            log_security_event(
+                service="api_gateway",
+                event="token_validation_failure",
+                outcome="denied",
+                correlation_id=get_correlation_id(request),
+                reason="missing_subject",
+            )
             raise credentials_exception
         return username
 

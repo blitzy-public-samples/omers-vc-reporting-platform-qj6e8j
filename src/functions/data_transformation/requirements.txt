@@ -1,12 +1,8 @@
-# Minimum supported Python runtime: 3.10
-# The pinned requests and urllib3 versions below require Python >= 3.10.
-
 # Azure Functions SDK
 azure-functions==1.15.0  # Latest version as of the time of writing
 
 # HTTP requests library
 requests==2.34.2  # Latest stable version
-urllib3==2.7.0  # Pinned patched transitive dependency
 
 # Data manipulation and analysis
 pandas==2.0.3  # Latest stable version

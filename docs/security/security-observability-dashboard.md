@@ -4,7 +4,7 @@ This document is a **template**. It describes the dashboard **panels** an operat
 
 The remediation did **not** introduce any new monitoring infrastructure. The security-event signals are emitted as **structured log records that carry a correlation identifier and a service name**, built entirely on the **reused standard-library `logging`** configuration already present in the services and on the existing **`/health`** endpoints on the **API gateway** and the **reporting-metrics service**. No tracing backend, metrics backend, or new monitoring agent was added.
 
-These log records are collected by the platform's **existing** monitoring context — **Azure Monitor / Azure Log Analytics**, per the product specification — which is where an operator would construct the panels described below. This is the pre-existing aggregation destination for application and system logs; the remediation contributes the new security-event records to that stream rather than standing up a new integration.
+An operator would construct the panels described below in whatever log-aggregation backend the platform is configured to use (for example, **Azure Monitor / Azure Log Analytics**, per the product specification). This remediation does **not** implement, configure, or verify any such collection integration; it only emits the security-event records onto the reused standard-library `logging` stream. Collecting those records and building the panels remains an **operator responsibility** and is a deferred follow-up (see below).
 
 - **Scope:** three security-event panels plus a deferred-work note. Nothing beyond security-relevant signals is described here.
 - **Signal shape:** every panel is driven by structured log records that include, at minimum, a `correlation_id` (for request-level drill-down) and a `service` name (for per-service breakdown).
@@ -22,7 +22,7 @@ These log records are collected by the platform's **existing** monitoring contex
 - **Metric / visualization:** count or rate over time of JWT decode/verify rejections, rendered as a time-series chart.
 - **Suggested breakdown dimensions:** broken down by `service`, and optionally by rejection reason (for example, invalid signature, expired token, or malformed token) where the log record distinguishes them.
 - **Correlation & service context:** each underlying log record carries a `correlation_id` and the emitting `service` name for drill-down and per-service attribution.
-- **Signal source:** the token-validation rejection log record emitted at the JWT decode call sites, which enforce `algorithms=["HS256"]`; this panel makes those rejections observable and confirms the algorithm restriction is exercised.
+- **Signal source:** the `token_validation_failure` security-event record emitted when a token is rejected at a service's authentication boundary (the authentication service's protected route and the API gateway's token dependency and authentication middleware). The underlying `validate_token` decode enforces `algorithms=["HS256"]`; this panel makes those rejections observable.
 
 ## Panel: CORS Rejections
 
@@ -45,6 +45,7 @@ The table below maps each panel to the log event that feeds it and the key field
 
 The following observability capabilities exceed the scope of this security fix and were recorded as recommended next steps, not undertaken as part of this engagement.
 
+- **Log-collection wiring and dashboard construction** — routing the emitted security-event records into a log-aggregation backend (for example, Azure Monitor / Log Analytics) and building the panels above is **not** implemented or configured by this remediation (operator follow-up).
 - **Full distributed tracing** — not implemented (recommended follow-up).
 - **Wiring the declared-but-unused `prometheus-client` metrics endpoint** — not implemented (recommended follow-up).
 - **Application Insights integration** — not implemented (recommended follow-up).

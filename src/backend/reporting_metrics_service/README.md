@@ -16,7 +16,7 @@ The Reporting Metrics Service is a crucial component of the OMERS Ventures backe
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.10
 - FastAPI 0.68.0
 - SQLAlchemy 1.4.22
 - pytest 6.2.4 (for running tests)
@@ -80,7 +80,7 @@ The service uses environment variables for configuration. Key configuration opti
 
 Refer to the `config.py` file for a complete list of configuration options.
 
-> **Container:** The service image now runs as a dedicated **non-root user** on the **`python:3.9-slim`** base image.
+> **Container:** The service image now runs as a dedicated **non-root user** on the **`python:3.10-slim`** base image.
 
 ## Testing
 

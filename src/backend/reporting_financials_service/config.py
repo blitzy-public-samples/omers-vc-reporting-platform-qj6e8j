@@ -9,7 +9,8 @@ Requirements addressed:
 """
 
 import os
-from pydantic import BaseSettings, PostgresDsn, SecretStr, Field
+from typing import List, Union
+from pydantic import BaseSettings, PostgresDsn, SecretStr, Field, validator
 
 class Config(BaseSettings):
     """
@@ -33,12 +34,31 @@ class Config(BaseSettings):
     API_VERSION: str = "v1"
 
     # CORS settings
-    CORS_ORIGINS: list = ["http://localhost:3000"]  # CWE-942: no wildcard; restrict origins
+    # Union[str, List[str]] keeps Pydantic v1 from JSON-parsing the env var, so the
+    # documented comma-separated CORS_ORIGINS string reaches the validator (see .env.sample / README).
+    CORS_ORIGINS: Union[str, List[str]] = ["http://localhost:3000"]  # CWE-942: no wildcard; restrict origins
 
     # JWT settings for authentication
     JWT_SECRET_KEY: SecretStr = Field(..., min_length=32, env="JWT_SECRET_KEY")  # CWE-798/CWE-259: require from env, min length 32
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    @validator('CORS_ORIGINS', pre=True, always=True)
+    def _parse_and_validate_cors_origins(cls, v):
+        # Accept comma-separated CORS_ORIGINS (see .env.sample / README) and reject
+        # wildcard, empty, or malformed origins (CWE-942); require http(s) scheme and host.
+        if isinstance(v, str):
+            v = [origin.strip() for origin in v.split(',') if origin.strip()]
+        from urllib.parse import urlparse
+        if not v:
+            raise ValueError("CORS_ORIGINS must be a non-empty explicit allow-list; wildcard '*' is not permitted.")
+        for origin in v:
+            if origin == '*':
+                raise ValueError("Wildcard '*' CORS origin is not permitted with credentials (CWE-942).")
+            parsed = urlparse(origin)
+            if not (parsed.scheme in ('http', 'https') and parsed.netloc):
+                raise ValueError(f"Invalid CORS origin URL: {origin}")
+        return v
 
     class Config:
         env_file = ".env"

@@ -20,7 +20,13 @@ import jwt  # PyJWT version 2.3.0
 from src.backend.api_gateway.app.models.models import ExampleModel, Company, MetricsInput, QuarterlyReportingFinancials, QuarterlyReportingMetrics
 from src.backend.api_gateway.app.routers.routes import setup_routes
 from src.backend.api_gateway.config import Settings
-from src.backend.authentication_service.app.security import generate_token, validate_token
+from src.backend.authentication_service.app.security import (
+    generate_token,
+    validate_token,
+    log_security_event,
+    get_correlation_id,
+    install_security_logging,
+)
 
 # Initialize logging
 logging.basicConfig(level=logging.INFO)
@@ -45,7 +51,6 @@ def initialize_api_gateway() -> FastAPI:
     )
 
     # Configure CORS
-    # CORS allow-list (CWE-942)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -53,6 +58,9 @@ def initialize_api_gateway() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Correlation-id propagation + scoped CORS-rejection security events (CWE-942)
+    install_security_logging(app, service="api_gateway", allowed_origins=settings.cors_origins)
 
     # Set up API routes
     setup_routes(app)
@@ -65,8 +73,25 @@ def initialize_api_gateway() -> FastAPI:
             try:
                 payload = validate_token(token.split(" ")[1])
                 request.state.user = payload
+                if payload is None:
+                    # Token-rejection security event (FR-8.5 / FR-10.6).
+                    # Observability only: response/auth semantics are unchanged.
+                    log_security_event(
+                        service="api_gateway",
+                        event="token_validation_failure",
+                        outcome="denied",
+                        correlation_id=get_correlation_id(request),
+                        reason="invalid_token",
+                    )
             except jwt.PyJWTError:
                 # Handle invalid token
+                log_security_event(
+                    service="api_gateway",
+                    event="token_validation_failure",
+                    outcome="denied",
+                    correlation_id=get_correlation_id(request),
+                    reason="decode_error",
+                )
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authentication credentials",

@@ -1,5 +1,5 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+# Use a maintained Python runtime (python:3.9-slim reached end-of-life; CWE-1104)
+FROM python:3.10-slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -29,12 +29,12 @@ LABEL version="1.0"
 LABEL description="Dockerfile for the Reporting Financials Service, responsible for containerizing the FastAPI application that manages and retrieves financial reports."
 
 # Multi-stage build to reduce final image size
-FROM python:3.9-slim AS builder
+FROM python:3.10-slim AS builder
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
-FROM python:3.9-slim
+FROM python:3.10-slim
 WORKDIR /app
 COPY --from=builder /root/.local /root/.local
 COPY . .

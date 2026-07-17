@@ -90,20 +90,40 @@ stages:
   - job: DependencyScan
     displayName: Scan Python dependencies with pip-audit
     steps:
+    # Python >=3.10 is required to resolve the platform's patched dependency pins. Each manifest is
+    # audited INDEPENDENTLY: pytest is pinned 6.2.4 in most services and 6.2.5 in the authentication
+    # service, so a single combined resolution cannot satisfy both. The scanner is pinned for
+    # reproducibility.
     - task: UsePythonVersion@0
       inputs:
-        versionSpec: '3.9'
+        versionSpec: '3.10'
         addToPath: true
     - script: |
         python -m pip install --upgrade pip
-        pip install pip-audit
-        pip-audit \
-          -r src/backend/api_gateway/requirements.txt \
-          -r src/backend/authentication_service/requirements.txt \
-          -r src/backend/metrics_input_service/requirements.txt \
-          -r src/backend/reporting_financials_service/requirements.txt \
-          -r src/backend/reporting_metrics_service/requirements.txt \
-          -r src/functions/data_transformation/requirements.txt
+        pip install pip-audit==2.10.1
+        status=0
+        for manifest in \
+          src/backend/api_gateway/requirements.txt \
+          src/backend/authentication_service/requirements.txt \
+          src/backend/metrics_input_service/requirements.txt \
+          src/backend/reporting_financials_service/requirements.txt \
+          src/backend/reporting_metrics_service/requirements.txt \
+          src/functions/data_transformation/requirements.txt; do
+          echo "Auditing $manifest"
+          # Governed advisories (rationale in docs/security/decision-log.md): starlette 0.50.0 is the
+          # least-vulnerable release compatible with the frozen Pydantic v1 constraint, and the
+          # pytest/loguru upgrades are explicitly deferred. Any other finding fails the gate.
+          pip-audit -r "$manifest" \
+            --ignore-vuln PYSEC-2026-161 \
+            --ignore-vuln PYSEC-2026-248 \
+            --ignore-vuln PYSEC-2026-249 \
+            --ignore-vuln PYSEC-2026-2280 \
+            --ignore-vuln PYSEC-2026-2281 \
+            --ignore-vuln PYSEC-2026-1845 \
+            --ignore-vuln PYSEC-2022-14 \
+            || status=1
+        done
+        exit $status
       displayName: 'Run pip-audit dependency vulnerability scan'
       workingDirectory: $(Build.SourcesDirectory)
 

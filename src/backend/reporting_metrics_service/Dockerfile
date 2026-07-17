@@ -1,5 +1,5 @@
-# Use the official Python 3.9 slim image as the base image
-FROM python:3.9-slim
+# Use a maintained Python slim base image (python:3.9-slim reached end-of-life; CWE-1104)
+FROM python:3.10-slim
 
 # Set the working directory in the container to /app
 WORKDIR /app

@@ -1,5 +1,5 @@
 import os
-from pydantic import BaseSettings, Field
+from pydantic import BaseSettings, Field, validator
 
 # Requirements addressed:
 # - API Development and Deployment (Technical Requirements/Feature 2: API Development and Deployment)
@@ -38,6 +38,15 @@ class Settings(BaseSettings):
     # Azure Active Directory settings
     AZURE_AD_CLIENT_ID: str = os.getenv('AZURE_AD_CLIENT_ID')
     AZURE_AD_TENANT_ID: str = os.getenv('AZURE_AD_TENANT_ID')
+
+    @validator('DATABASE_URL')
+    def _validate_database_url(cls, v):
+        # Require a non-empty PostgreSQL DSN; reject empty/malformed values (fail closed).
+        from urllib.parse import urlparse
+        parsed = urlparse(v or '')
+        if not (parsed.scheme in ('postgresql', 'postgres') and parsed.netloc):
+            raise ValueError("DATABASE_URL must be a non-empty PostgreSQL DSN (e.g. postgresql://user:pass@host:port/db).")
+        return v
     
     class Config:
         case_sensitive = True
