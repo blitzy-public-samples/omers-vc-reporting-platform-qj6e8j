@@ -43,7 +43,7 @@ class Config(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    @validator('CORS_ORIGINS', pre=True, always=True)
+    @validator('CORS_ORIGINS', pre=True, always=True, allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
     def _parse_and_validate_cors_origins(cls, v):
         # Accept comma-separated CORS_ORIGINS (see .env.sample / README) and reject
         # wildcard, empty, or malformed origins (CWE-942); require http(s) scheme and host.

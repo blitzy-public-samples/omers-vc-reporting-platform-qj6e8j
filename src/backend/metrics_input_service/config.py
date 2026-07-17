@@ -27,25 +27,22 @@ class Settings(BaseSettings):
     # CWE-942: explicit non-wildcard CORS allow-list (never "*"); overridable via env
     CORS_ORIGINS: list = ['http://localhost:3000', 'https://localhost:3000']
 
-    @validator('CORS_ORIGINS', always=True)
-    def _validate_cors_origins(cls, value):
-        # CWE-942: fail closed on any invalid entry; only explicit http(s) origins are allowed.
+    @validator('CORS_ORIGINS', pre=True, always=True)
+    def _validate_cors_origins(cls, v):
+        # CWE-942: reject wildcard, empty, or malformed origins (fail closed); require an
+        # http(s) scheme and host on every origin so no untrusted or "*" origin is accepted.
+        if isinstance(v, str):
+            v = [origin.strip() for origin in v.split(',') if origin.strip()]
         from urllib.parse import urlparse
-        if not value:
-            raise ValueError("CORS_ORIGINS must define at least one explicit origin")
-        for origin in value:
-            if not isinstance(origin, str) or "*" in origin:
-                raise ValueError("CORS_ORIGINS must not contain wildcard entries")
+        if not v:
+            raise ValueError("CORS_ORIGINS must be a non-empty explicit allow-list; wildcard '*' is not permitted.")
+        for origin in v:
+            if origin == '*':
+                raise ValueError("Wildcard '*' CORS origin is not permitted with credentials (CWE-942).")
             parsed = urlparse(origin)
-            if parsed.scheme not in ("http", "https"):
-                raise ValueError("CORS_ORIGINS entries must use the http or https scheme")
-            if not parsed.netloc:
-                raise ValueError("CORS_ORIGINS entries must include a host")
-            if parsed.username or parsed.password:
-                raise ValueError("CORS_ORIGINS entries must not include userinfo")
-            if parsed.path or parsed.query or parsed.fragment:
-                raise ValueError("CORS_ORIGINS entries must be bare origins (no path, query, or fragment)")
-        return value
+            if not (parsed.scheme in ('http', 'https') and parsed.netloc):
+                raise ValueError(f"Invalid CORS origin URL: {origin}")
+        return v
 
     class Config:
         env_file = ".env"

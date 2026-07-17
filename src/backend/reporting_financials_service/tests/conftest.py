@@ -5,13 +5,12 @@ Security remediation (CWE-798/CWE-259): after the fix, ``config.py`` requires
 absent or too short. ``config.py`` also types ``DATABASE_URL`` as ``PostgresDsn``.
 Provision both here so the package's modules import cleanly during collection.
 
-NOTE (pre-existing, out of scope): ``tests/__init__.py`` executes on package import
-(it calls ``create_app()``), and because this ``tests/`` directory is a package,
-pytest imports it before this conftest body runs. A service-level
-``reporting_financials_service/conftest.py`` (a namespace dir without ``__init__.py``)
-would be required to provision the environment strictly before ``tests/__init__.py``.
-Creating that file is outside this folder's scope; it is recommended to the owner of
-the parent service folder. Rationale detail lives in ``docs/security/decision-log.md``.
+The package initializer ``tests/__init__.py`` now provisions the same variables at
+the very top of package import (before pytest collects any test module), so the
+security regression tests import ``config`` and collect cleanly. This conftest
+remains as a redundant, idempotent safety net (``setdefault`` never overrides a
+value already set by the environment or by the package initializer). Rationale
+detail lives in ``docs/security/decision-log.md``.
 """
 
 import os

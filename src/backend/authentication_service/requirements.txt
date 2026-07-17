@@ -34,6 +34,11 @@ anyio<4
 # Purpose: To make HTTP requests in test cases.
 requests==2.34.2
 
+# HTTP client required by fastapi.testclient (starlette.testclient) for the
+# CORS security regression tests (tests/test_security_cors.py). Without it the
+# manifest-provisioned CI job errors at test collection.
+httpx==0.27.0
+
 # Password hashing
 # Version: 1.7.4
 # Purpose: To securely hash and verify passwords.

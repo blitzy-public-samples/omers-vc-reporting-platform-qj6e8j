@@ -48,7 +48,7 @@ def create_app() -> FastAPI:
         version=config.API_VERSION
     )
 
-    # Configure CORS
+    # Configure CORS — origins restricted to the explicit allow-list from config.CORS_ORIGINS (CWE-942); credentials enabled only for listed origins
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.CORS_ORIGINS,

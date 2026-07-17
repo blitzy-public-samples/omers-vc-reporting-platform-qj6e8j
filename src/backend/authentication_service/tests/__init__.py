@@ -10,8 +10,10 @@ This module addresses the following requirement:
 The __init__.py file sets up the testing environment for the authentication service by importing test modules and configuring pytest.
 """
 
-# Import the test_authentication module to include its test cases in the test suite.
-from src.backend.authentication_service.tests import test_authentication
+# Test modules are discovered automatically by pytest; this package __init__ must
+# remain free of import-time side effects (no eager test-module imports, no runner
+# invocation). Importing test modules here would force required environment before
+# each module can provision it and would pull in the application import chain.
 
 # External dependency: pytest (version 6.2.5)
 # Purpose: To provide a testing framework for writing and running test cases.
@@ -40,5 +42,7 @@ def pytest_configure(config):
 #     yield client
 #     # Teardown code (if necessary)
 
-# Ensure pytest discovers and runs the tests in the authentication service
-pytest.main(["-v", "src/backend/authentication_service/tests"])
+# NOTE: A previous revision invoked ``pytest.main([...])`` here at import scope,
+# which turned any import of this package into a recursive pytest run with global
+# side effects. That invocation has been removed; pytest is driven from the CLI
+# and discovers the tests in this directory without an import-time runner.

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # JWT algorithm
     algorithm: str = Field(default="HS256", env='ALGORITHM')
 
-    @validator('cors_origins', pre=True, always=True)
+    @validator('cors_origins', pre=True, always=True, allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
     def _split_cors_origins(cls, v):
         # Accept comma-separated CORS_ALLOW_ORIGINS (see .env.sample) as an explicit list
         if isinstance(v, str):

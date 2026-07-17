@@ -41,6 +41,14 @@ def override_get_db():
     finally:
         db.close()
 
+# The reporting-metrics application package has a pre-existing, out-of-scope import-time
+# defect: app/models/models.py does `from sqlalchemy import ... UUID`, which SQLAlchemy
+# 1.4.x does not provide (no top-level UUID), and app/database.py / app/schemas.py are
+# absent. Per the checkpoint's security-test-quality requirement, this application import
+# is deliberately NOT wrapped in a masking `except ImportError` guard: a broken app import
+# must surface as a loud collection/runtime error, never be swallowed into
+# app=None/client=None (which would present a false-green suite). The underlying app
+# defect is separately tracked in docs/security/decision-log.md.
 from src.backend.reporting_metrics_service.app.models import ReportingMetrics
 from src.backend.reporting_metrics_service.main import app, get_db
 
@@ -80,7 +88,9 @@ def teardown_test_data():
     finally:
         db.close()
 
-# Import test modules
+# Import test modules for discovery. Deliberately NOT wrapped in a masking guard: if
+# test_metrics (which imports the application chain) fails to import, that failure must
+# surface loudly rather than being silently swallowed.
 from .test_metrics import test_get_reporting_metrics
 
 # Define test suite
