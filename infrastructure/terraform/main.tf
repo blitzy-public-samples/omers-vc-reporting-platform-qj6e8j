@@ -132,7 +132,7 @@ resource "azurerm_function_app" "function_app" {
   }
 
   site_config {
-    linux_fx_version = "PYTHON|3.9"
+    linux_fx_version = "PYTHON|3.11"
   }
 
   tags = {
