@@ -10,6 +10,7 @@
 
 import logging
 from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel  # version 1.8.2
 import jwt  # PyJWT version 2.3.0
@@ -96,7 +97,13 @@ def create_app() -> FastAPI:
         access_token = generate_token(username)
         return {"access_token": access_token, "token_type": "bearer"}
 
-    async def get_current_user(request: Request, token: str = Depends(validate_token)):
+    # OAuth2 bearer scheme: extracts the JWT from the "Authorization: Bearer <token>"
+    # header (401 if absent). Mirrors the authentication_service pattern; replaces the
+    # prior Depends(validate_token) that exposed the raw token as a query parameter and
+    # then validated it twice, so /protected could never return 200.
+    oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+    async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):
         """
         Dependency for validating JWT tokens to ensure secure API access.
         """

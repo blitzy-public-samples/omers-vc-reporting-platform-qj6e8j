@@ -5,6 +5,6 @@ fastapi==0.125.0  # Web framework serving the API Gateway application (run via u
 uvicorn==0.15.0  # ASGI server used to run the FastAPI application.
 pydantic==1.10.13  # Used for data validation and settings management within the data models, ensuring data integrity and compliance with defined schemas.
 PyJWT==2.13.0  # To encode and decode JSON Web Tokens for secure token-based authentication, supporting OAuth 2.0 implementation.
-python-dotenv==1.0.1  # Required transitively: api_gateway imports authentication_service.app.security -> authentication_service.config, which calls dotenv.load_dotenv() at import time. Pinned to 1.0.1 (AAP target; Python >=3.8) so it installs on this service's python:3.9-slim base.
+python-dotenv==1.0.1  # Required transitively: api_gateway imports authentication_service.app.security -> authentication_service.config, which calls dotenv.load_dotenv() at import time. Held at 1.0.1 on this service's python:3.9-slim base; the fix for PYSEC-2026-2270 (python-dotenv 1.2.2) requires Python >= 3.10, so that advisory is waived in CI for this Python 3.9 service (see the SecurityScan gate and the security decision log).
 pytest==6.2.4  # Framework for writing and executing unit tests, ensuring code reliability and correctness through automated testing.
 httpx==0.27.0  # To make HTTP requests to the FastAPI application during testing, facilitating integration and end-to-end tests.

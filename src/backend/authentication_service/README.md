@@ -35,6 +35,8 @@ The Authentication Service is a component of the backend platform responsible fo
 
    **Note:** The container image runs as a dedicated non-root user (uid 1000) on the `python:3.10-slim` base image.
 
+   > **Known limitation:** a default `docker run` of this image currently exits with `ModuleNotFoundError: No module named 'src'` because the image is built with the service directory as the build context (`COPY . .`) while the application uses absolute `src.backend.*` imports. The in-scope container hardening (non-root uid 1000, supported base image) is in place; packaging the namespace correctly for the build context is a pre-existing, out-of-scope defect and a documented follow-up (see the root [`SECURITY.md`](../../../SECURITY.md)).
+
 5. Access the FastAPI application through the specified host and port (default: http://localhost:8000).
 
 ## Usage
@@ -76,7 +78,7 @@ The service uses environment variables for configuration. Key variables include:
 
 This service targets **Python 3.10+** (matching the service container's `python:3.10-slim` base image) and relies on the following key dependencies:
 
-- `python-dotenv (1.0.1)`: For loading environment variables from a .env file.
+- `python-dotenv (1.2.2)`: For loading environment variables from a .env file.
 - `PyJWT (2.13.0)`: For encoding and decoding JSON Web Tokens.
 - `FastAPI (0.125.0)`: The web framework used for creating the API.
 - `Uvicorn (0.15.0)`: ASGI server for running the FastAPI application.

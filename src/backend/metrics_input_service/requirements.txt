@@ -7,6 +7,11 @@ uvicorn==0.15.0
 # SQLAlchemy is used for ORM operations to define and interact with the PostgreSQL database tables.
 sqlalchemy==1.4.22
 
+# PostgreSQL DBAPI driver required by SQLAlchemy's postgresql:// engine (create_engine in main.py
+# and app/routers/metrics.py). Absent previously, causing "No module named 'psycopg2'" at app
+# startup. Pinned to 2.9.1 to match the authentication_service / reporting_metrics_service manifests.
+psycopg2-binary==2.9.1
+
 # Pydantic is used for data validation and settings management within the configuration file and data models.
 pydantic==1.10.13
 
@@ -16,7 +21,7 @@ pytest==6.2.4
 # HTTPX is used for making HTTP requests in tests to simulate client interactions with the API.
 httpx==0.27.0
 
-# Python-dotenv loads environment variables from a .env file (required by the Pydantic BaseSettings env_file support in config.py); pinned to 1.0.1 for Python 3.9 compatibility.
+# Python-dotenv loads environment variables from a .env file (required by the Pydantic BaseSettings env_file support in config.py); pinned to 1.0.1 for Python 3.9 compatibility. The fix for PYSEC-2026-2270 (python-dotenv 1.2.2) requires Python >= 3.10, so that advisory is waived in CI for this Python 3.9 service (see the SecurityScan gate and the security decision log).
 python-dotenv==1.0.1
 
 # Additional dependencies can be added here as needed for the Metrics Input Service.

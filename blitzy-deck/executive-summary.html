@@ -659,7 +659,7 @@
               <tr>
                 <th class="layer" scope="row">Dependencies</th>
                 <td class="before">16 packages, 72 OSV advisories</td>
-                <td class="after">Patched pins; residual <span class="mono">starlette</span>/<span class="mono">click</span> advisories under documented CI waivers (Pydantic v1 kept)</td>
+                <td class="after">Patched pins; residual <span class="mono">starlette</span>/<span class="mono">click</span>/<span class="mono">python-dotenv</span> advisories under documented CI waivers (Pydantic v1 kept)</td>
               </tr>
               <tr>
                 <th class="layer" scope="row">CORS</th>
@@ -753,7 +753,7 @@
             </tbody>
           </table>
         </div>
-        <p class="footnote"><span class="mono">httpx</span> (test) 0.18.2 &rarr; 0.27.0 <span class="badge sev-medium">Medium</span> &middot; <span class="mono">python-dotenv</span> &rarr; 1.0.1 <span class="badge sev-low">Low</span> &middot; data-transformation function pins <span class="mono">requests</span> 2.33.0.</p>
+        <p class="footnote"><span class="mono">httpx</span> (test) 0.18.2 &rarr; 0.27.0 <span class="badge sev-medium">Medium</span> &middot; <span class="mono">python-dotenv</span> &rarr; 1.2.2 (Python 3.10 services) / 1.0.1 (Python 3.9 services; PYSEC-2026-2270 waived) <span class="badge sev-low">Low</span> &middot; data-transformation function pins <span class="mono">requests</span> 2.33.0.</p>
       </section>
 
       <!-- ================= Slide 6 — Compatibility discipline ============== -->
@@ -774,7 +774,7 @@
         <div class="eyebrow">How the fix was proven</div>
         <h2>Verification</h2>
         <ul>
-          <li class="fragment"><strong>Dependency scan</strong> (<span class="mono">pip-audit</span>) &mdash; the CI gate passes when <strong>no un-waived advisory</strong> remains; within-envelope-unfixable <span class="mono">starlette</span>/<span class="mono">click</span> advisories carry documented <span class="mono">--ignore-vuln</span> waivers.</li>
+          <li class="fragment"><strong>Dependency scan</strong> (<span class="mono">pip-audit</span>) &mdash; the CI gate passes when <strong>no un-waived advisory</strong> remains; residual <span class="mono">starlette</span>/<span class="mono">click</span>/<span class="mono">python-dotenv</span> advisories (unfixable within the Pydantic-v1 envelope, or whose fix needs Python &ge; 3.10 on the Python 3.9 services) carry documented <span class="mono">--ignore-vuln</span> waivers.</li>
           <li class="fragment"><strong>CORS regression tests</strong> &mdash; never <span class="mono">Access-Control-Allow-Origin: *</span> together with credentials; only configured origins are reflected; unlisted origins are <strong>not</strong> reflected.</li>
           <li class="fragment"><strong>Secret-required configuration tests</strong> &mdash; <span class="mono">JWT_SECRET_KEY</span> / <span class="mono">SECRET_KEY</span> required and length-enforced (min 32); no <span class="mono">"your-secret-key"</span> default resolvable.</li>
           <li class="fragment"><strong>Secret / IaC scan</strong> &mdash; no plaintext password literal remains in source; the <span class="mono">main.tf</span> credential fix validates in isolation.</li>
@@ -793,7 +793,7 @@
             <p class="col-head">Open residual risk</p>
             <ul class="tight">
               <li class="fragment"><strong>Architectural authentication rework</strong> <span class="badge sev-critical">Critical</span> &mdash; pre-existing gateway bearer-flow inconsistency and business-router authorization gaps; separately authorized work.</li>
-              <li class="fragment"><strong>Residual <span class="mono">starlette</span>/<span class="mono">click</span> advisories</strong> &mdash; unfixable within the frozen FastAPI/Pydantic-v1 envelope; held under documented CI waivers.</li>
+              <li class="fragment"><strong>Residual <span class="mono">starlette</span>/<span class="mono">click</span>/<span class="mono">python-dotenv</span> advisories</strong> &mdash; unfixable within the frozen FastAPI/Pydantic-v1 envelope, or (on the Python 3.9 services) whose fix needs Python &ge; 3.10; held under documented CI waivers.</li>
               <li class="fragment"><strong>Former DB credential in git history</strong> &mdash; removed from the current tree; rotation + approved history purge remain an operational follow-up.</li>
               <li class="fragment"><strong>Container default startup</strong> &mdash; images are non-root, but a default <span class="mono">docker run</span> needs the namespace packaged for the build context.</li>
             </ul>

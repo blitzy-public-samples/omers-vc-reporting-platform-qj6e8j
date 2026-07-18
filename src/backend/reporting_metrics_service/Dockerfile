@@ -29,23 +29,23 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 # Description: This Dockerfile implements Docker containers for consistent deployment environments across development and production.
 
 # Add version comments for third-party imports
-# FastAPI version: 0.68.0
+# FastAPI version: 0.125.0
 # SQLAlchemy version: 1.4.22
 # Pytest version: 6.2.4
 # Uvicorn version: 0.15.0
-# Pydantic version: 1.8.2
+# Pydantic version: 1.10.13
 # Databases version: 0.5.2
 # Asyncpg version: 0.24.0
-# Python-dotenv version: 0.19.0
-# Requests version: 2.26.0
+# Python-dotenv version: 1.2.2
+# Requests version: 2.34.2
 # Alembic version: 1.7.3
 # Psycopg2-binary version: 2.9.1
 # Dependency injector version: 4.39.1
 # Loguru version: 0.5.3
 # Prometheus client version: 0.11.0
-# Azure Identity version: 1.7.0
+# Azure Identity version: 1.16.1
 # Azure Key Vault version: 4.3.0
 # Tenacity version: 8.0.1
-# Gunicorn version: 20.1.0
+# Gunicorn version: 23.0.0
 
 # Note: Ensure that the application code includes a 'main.py' file with a FastAPI app instance named 'app'.

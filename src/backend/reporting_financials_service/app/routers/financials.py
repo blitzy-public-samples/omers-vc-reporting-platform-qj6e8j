@@ -8,8 +8,11 @@ from pydantic import BaseModel, Field
 # Import the FinancialReport model from the models module
 from src.backend.reporting_financials_service.app.models.models import FinancialReport
 
-# Import the Config from the config module
-from src.backend.reporting_financials_service.config import Config
+# Import the config instance from the config module. Pydantic v1 removes required fields
+# (Field(...)) from the class namespace, so values must be read from the instance
+# (config.DATABASE_URL), not the class (Config.DATABASE_URL) — the latter raised
+# AttributeError at import and prevented the service from starting.
+from src.backend.reporting_financials_service.config import config
 
 # Import necessary SQLAlchemy components
 from sqlalchemy import create_engine
@@ -22,7 +25,7 @@ from sqlalchemy.orm import sessionmaker
 router = APIRouter()
 
 # Create a database engine and session
-engine = create_engine(Config.DATABASE_URL)
+engine = create_engine(str(config.DATABASE_URL))
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Dependency to get the database session
@@ -78,8 +81,37 @@ class FinancialReportCreate(BaseModel):
             }
         }
 
+# Pydantic response schema. FastAPI's response_model must be a Pydantic model, not the
+# SQLAlchemy ORM class (FinancialReport); orm_mode=True lets FastAPI serialize ORM rows.
+# Fields mirror the authoritative quarterly_reporting_financials columns.
+class FinancialReportResponse(BaseModel):
+    company_id: UUID
+    currency: str
+    exchange_rate_used: Optional[float] = None
+    total_revenue: Optional[float] = None
+    recurring_revenue: Optional[float] = None
+    gross_profit: Optional[float] = None
+    debt_outstanding: Optional[float] = None
+    sales_marketing_expense: Optional[float] = None
+    total_operating_expense: Optional[float] = None
+    ebitda: Optional[float] = None
+    net_income: Optional[float] = None
+    cash_burn: Optional[float] = None
+    cash_balance: Optional[float] = None
+    fiscal_reporting_date: Optional[date] = None
+    fiscal_reporting_quarter: Optional[int] = None
+    reporting_year: Optional[int] = None
+    reporting_quarter: Optional[int] = None
+    created_date: Optional[datetime] = None
+    created_by: Optional[str] = None
+    last_update_date: Optional[datetime] = None
+    last_updated_by: Optional[str] = None
+
+    class Config:
+        orm_mode = True
+
 # GET endpoint to retrieve financial reports
-@router.get('/financial_reports/', response_model=List[FinancialReport])
+@router.get('/financial_reports/', response_model=List[FinancialReportResponse])
 async def get_financial_reports(
     company_id: Optional[UUID] = Query(None, description="Filter by company ID"),
     reporting_year: Optional[int] = Query(None, description="Filter by reporting year"),
@@ -111,7 +143,7 @@ async def get_financial_reports(
     return reports
 
 # POST endpoint to create a new financial report
-@router.post('/financial_reports/', response_model=FinancialReport)
+@router.post('/financial_reports/', response_model=FinancialReportResponse)
 async def create_financial_report(report_data: FinancialReportCreate, db: Session = Depends(get_db)):
     """
     Creates a new financial report entry in the database.
@@ -123,6 +155,9 @@ async def create_financial_report(report_data: FinancialReportCreate, db: Sessio
     :param db: Database session dependency
     :return: The newly created financial report entry
     """
+    # employees/customers are accepted by the request model for backward compatibility
+    # but are not columns of the authoritative quarterly_reporting_financials table, so
+    # they are not persisted. created_date is populated by the DB default (CURRENT_TIMESTAMP).
     new_report = FinancialReport(
         company_id=report_data.company_id,
         currency=report_data.currency,
@@ -136,13 +171,10 @@ async def create_financial_report(report_data: FinancialReportCreate, db: Sessio
         cash_burn=report_data.cash_burn,
         cash_balance=report_data.cash_balance,
         debt_outstanding=report_data.debt_outstanding,
-        employees=report_data.employees,
-        customers=report_data.customers,
         fiscal_reporting_date=report_data.fiscal_reporting_date,
         fiscal_reporting_quarter=report_data.fiscal_reporting_quarter,
         reporting_year=report_data.reporting_year,
         reporting_quarter=report_data.reporting_quarter,
-        created_date=datetime.utcnow(),
         created_by="API"
     )
     
@@ -151,22 +183,8 @@ async def create_financial_report(report_data: FinancialReportCreate, db: Sessio
     db.refresh(new_report)
     return new_report
 
-# Error handling for common exceptions
-@router.exception_handler(HTTPException)
-async def http_exception_handler(request, exc):
-    return {"detail": str(exc.detail), "status_code": exc.status_code}
-
-# Logging configuration
-import logging
-logging.basicConfig(level=Config.LOG_LEVEL)
-logger = logging.getLogger(__name__)
-
-# Log all requests
-@router.middleware("http")
-async def log_requests(request, call_next):
-    logger.info(f"Request: {request.method} {request.url}")
-    response = await call_next(request)
-    logger.info(f"Response status: {response.status_code}")
-    return response
-
-# Note: Ensure that the 'Company' model is defined in the models module or imported if needed.
+# NOTE: exception handlers and HTTP middleware are registered on the FastAPI application
+# (see main.create_app), not on an APIRouter. APIRouter has no `.exception_handler` or
+# `.middleware` decorators, so the previous `@router.exception_handler(HTTPException)` and
+# `@router.middleware("http")` declarations raised AttributeError at import and prevented the
+# service from starting. They are removed here; application-level logging is configured in main.py.

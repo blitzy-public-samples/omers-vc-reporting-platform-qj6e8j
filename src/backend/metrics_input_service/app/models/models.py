@@ -1,12 +1,12 @@
 # src/backend/metrics_input_service/app/models/models.py
-from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Numeric, Date, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
 from pydantic import BaseModel, Field
 from datetime import date, datetime
 from typing import Optional
-from uuid import UUID as PyUUID
+from uuid import UUID as PyUUID, uuid4
 
 # Base class for SQLAlchemy models
 Base = declarative_base()
@@ -21,8 +21,16 @@ class MetricsInput(Base):
     """
     __tablename__ = 'metrics_input'
 
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.uuid_generate_v4())
-    company_id = Column(UUID(as_uuid=True), ForeignKey('companies.id'), nullable=False)
+    # Authoritative schema (create_tables.sql) declares `id UUID PRIMARY KEY` with no DB-side
+    # default, so the application supplies the value. A client-side default (uuid4) generates it
+    # at insert when the optional id is not provided, matching the DB and the Optional id contract.
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
+    # Referential integrity to companies(id) is enforced at the database layer
+    # (constraint metrics_input_company_id_fkey in create_tables.sql). The ORM-level
+    # ForeignKey is intentionally omitted because this microservice's declarative Base
+    # does not map the companies table, and an unresolved cross-table ForeignKey target
+    # aborts mapper compilation on the first flush/query.
+    company_id = Column(UUID(as_uuid=True), nullable=False)
     currency = Column(String, nullable=False)
     total_revenue = Column(Numeric, nullable=False)
     recurring_revenue = Column(Numeric, nullable=False)
@@ -77,5 +85,5 @@ class MetricsInputSchema(BaseModel):
     class Config:
         orm_mode = True
 
-# Note: Ensure that the UUID generation function `uuid_generate_v4()` is available in your PostgreSQL database.
-# If not, you may need to create an extension or use a different method for UUID generation.
+# Note: The primary-key UUID is generated application-side (uuid4) to match the authoritative
+# schema (create_tables.sql), which declares `id UUID PRIMARY KEY` with no database-side default.

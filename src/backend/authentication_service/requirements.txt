@@ -18,7 +18,7 @@ PyJWT==2.13.0
 # Environment variable management
 # Version: 0.19.2
 # Purpose: To load environment variables from a .env file.
-python-dotenv==1.0.1
+python-dotenv==1.2.2  # Patched release (PYSEC-2026-2270); requires Python >= 3.10
 
 # Testing framework
 # Version: 6.2.5

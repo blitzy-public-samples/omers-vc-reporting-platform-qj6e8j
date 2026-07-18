@@ -5,7 +5,8 @@ from uuid import UUID
 
 from src.backend.metrics_input_service.app.models.models import MetricsInput, MetricsInputSchema
 from src.backend.metrics_input_service.config import settings
-from sqlalchemy.orm import Session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
 # Version information for external libraries
@@ -13,20 +14,36 @@ from sqlalchemy.exc import SQLAlchemyError
 
 router = APIRouter()
 
+# Lazily-initialized SQLAlchemy session factory. The engine is built on first use
+# (not at import time) from settings.database_url, so importing this router never opens
+# a database connection. The postgresql:// engine loads the psycopg2 driver declared in
+# requirements.txt (psycopg2-binary).
+_SessionLocal = None
+
+
+def _get_session_local():
+    """Build the module-level SQLAlchemy sessionmaker once and return it."""
+    global _SessionLocal
+    if _SessionLocal is None:
+        engine = create_engine(settings.database_url)
+        _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return _SessionLocal
+
+
 # Dependency to get database session
 def get_db():
     """
-    Dependency function to provide a database session.
-    
-    This function should be implemented to return a database session.
-    For example, it could use SQLAlchemy's sessionmaker to provide a session.
-    
-    Returns:
-        Session: A SQLAlchemy session object.
+    FastAPI dependency that yields a real SQLAlchemy session bound to the configured
+    PostgreSQL database (settings.database_url), closing it when the request completes.
+
+    Yields:
+        Session: An active SQLAlchemy session object.
     """
-    # Placeholder for actual database session retrieval logic
-    # Example: return SessionLocal()
-    pass
+    db = _get_session_local()()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @router.post('/metrics/', response_model=dict)
 async def create_metrics(metrics_data: MetricsInputSchema, db: Session = Depends(get_db)):
@@ -47,8 +64,10 @@ async def create_metrics(metrics_data: MetricsInputSchema, db: Session = Depends
         HTTPException: If there's an error during data insertion.
     """
     try:
-        # Convert Pydantic model to SQLAlchemy model
-        metrics_instance = MetricsInput(**metrics_data.dict())
+        # Convert Pydantic model to SQLAlchemy model. exclude_none omits unsupplied optional
+        # fields so that server-side column defaults apply (id -> uuid_generate_v4(),
+        # created_date -> now()) instead of attempting to insert NULL into NOT NULL columns.
+        metrics_instance = MetricsInput(**metrics_data.dict(exclude_none=True))
 
         # Insert the validated data into the PostgreSQL database
         db.add(metrics_instance)

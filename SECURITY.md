@@ -30,7 +30,7 @@ Incoming reports are triaged by severity — **Critical / High / Medium / Low** 
 
 ## Security Remediation Summary
 
-An authoritative discovery pass — combining the OSV.dev advisory database with a manual audit of code, configuration, and infrastructure-as-code — surfaced **72 advisory findings across 16 vulnerable pinned packages**, plus **four non-dependency findings** (permissive CORS, weak fallback secrets, a hard-coded Terraform database credential, and container-hardening gaps). These findings were addressed with minimal, targeted changes that preserve existing functionality and workflows, with two documented exceptions: advisories whose only fix would breach the frozen compatibility envelope (notably `starlette`, held below 0.51 by the FastAPI `< 0.126` / Pydantic v1 ceiling) or whose fix is not installable on a service's runtime (`click` on the Python 3.9 services), together with the AAP-deferred `pytest` and `loguru` advisories, remain under documented CI waivers rather than being cleared; and several pre-existing, out-of-scope defects — which block some service test suites from collecting — are retained for separately scoped work. Both categories are enumerated under [Known Issues and Deferred Items](#known-issues-and-deferred-items) below.
+An authoritative discovery pass — combining the OSV.dev advisory database with a manual audit of code, configuration, and infrastructure-as-code — surfaced **72 advisory findings across 16 vulnerable pinned packages**, plus **four non-dependency findings** (permissive CORS, weak fallback secrets, a hard-coded Terraform database credential, and container-hardening gaps). These findings were addressed with minimal, targeted changes that preserve existing functionality and workflows, with two documented exceptions: advisories whose only fix would breach the frozen compatibility envelope (notably `starlette`, held below 0.51 by the FastAPI `< 0.126` / Pydantic v1 ceiling) or whose fix is not installable on a service's runtime (`click` and `python-dotenv` on the Python 3.9 services), together with the AAP-deferred `pytest` and `loguru` advisories, remain under documented CI waivers rather than being cleared; and several pre-existing, out-of-scope defects — which block some service test suites from collecting — are retained for separately scoped work. Both categories are enumerated under [Known Issues and Deferred Items](#known-issues-and-deferred-items) below.
 
 ### Security Posture — Before vs. After Remediation
 
@@ -90,7 +90,7 @@ Vulnerable pins were raised to the minimal patched versions that clear each advi
 | azure-identity | 1.7.0 | 1.16.1 | CVE-2024-35255 | High |
 | pydantic | 1.8.2 | 1.10.13 | CVE-2024-3772 | Medium |
 | httpx (test) | 0.18.2 | 0.27.0 | CVE-2021-41945 | Medium |
-| python-dotenv | 0.19.0 / 0.19.2 | 1.0.1 | CVE-2026-28684 | Low |
+| python-dotenv | 0.19.0 / 0.19.2 | 1.2.2 (Python 3.10 services) / 1.0.1 (Python 3.9 services; PYSEC-2026-2270 waived — fix requires Python >= 3.10) | CVE-2026-28684 / PYSEC-2026-2270 | Low |
 
 **Compatibility note:** Pydantic stays on the v1 line (preserves the `BaseSettings` API used throughout the codebase); FastAPI is capped `< 0.126.0` to retain Pydantic v1 support.
 
@@ -116,12 +116,16 @@ Security and regression tests (per service; pytest does not enter watch mode). R
 python -m pytest src/backend/<service>/tests -v --tb=short
 ```
 
-Infrastructure validation. `terraform validate` succeeds ("Success! The configuration is valid."). `terraform fmt -check` is a formatting-only check that reports pre-existing unformatted files (currently `backend.tf`) and returns a non-zero exit code; it does not affect `terraform validate`. Run the two as separate commands so the `fmt` result does not mask the passing `validate`:
+Infrastructure validation. Run against the full `infrastructure/terraform` directory, `terraform validate` currently **fails** on pre-existing undeclared-resource references in `outputs.tf` (unrelated to this engagement — see [Known Issues and Deferred Items](#known-issues-and-deferred-items)). The in-scope `main.tf` credential fix itself validates in isolation: copy `main.tf`, `backend.tf`, and `variables.tf` into an empty directory and run `terraform validate` there — it reports "Success! The configuration is valid." Separately, `terraform fmt -check` is a formatting-only check that reports pre-existing unformatted files (currently `backend.tf`) and returns a non-zero exit code; it is independent of `terraform validate`:
 
 ```bash
 cd infrastructure/terraform
-terraform validate          # Success! The configuration is valid.
+terraform validate          # currently fails: pre-existing undeclared-resource refs in outputs.tf (out of scope; see Known Issues)
 terraform fmt -check        # non-zero if pre-existing files (e.g. backend.tf) are unformatted (formatting-only)
+
+# The in-scope main.tf credential fix validates in isolation (excludes the pre-existing outputs.tf defect):
+mkdir tf-isolation && cp main.tf backend.tf variables.tf tf-isolation/
+cd tf-isolation && terraform init -backend=false && terraform validate   # Success! The configuration is valid.
 ```
 
 Container non-root verification (expect a non-zero uid):
@@ -148,6 +152,7 @@ This section discloses the advisories and defects that remain open after the eng
 
 - **`starlette`** (PYSEC-2026-161, -248, -249, -2280, -2281) — the fix requires FastAPI `>= 0.126`, which drops Pydantic v1; `starlette` is therefore held below 0.51 by the compatibility ceiling.
 - **`click`** (PYSEC-2026-2132) — on the Python 3.9 services (`api_gateway`, `metrics_input_service`) only; the fix requires Python `>= 3.10`.
+- **`python-dotenv`** (PYSEC-2026-2270) — on the Python 3.9 services (`api_gateway`, `metrics_input_service`) only; the fix (`python-dotenv` 1.2.2) requires Python `>= 3.10`. The three Python 3.10 services (`authentication_service`, `reporting_financials_service`, `reporting_metrics_service`) pin the patched `1.2.2`, so the advisory is cleared there rather than waived.
 - **`pytest`** (PYSEC-2026-1845) and **`loguru`** (PYSEC-2022-14) — AAP-deferred (see the follow-ups below).
 
 **Pre-existing, out-of-scope defects that affect some checks.** These are retained for separately scoped work. The security-regression suites are written to stay meaningful despite them — either by degrading gracefully or by exercising the settings class directly — so they pass rather than passing silently or masking the blocker:

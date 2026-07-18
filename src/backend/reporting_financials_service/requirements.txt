@@ -3,6 +3,12 @@
 # SQLAlchemy is used for ORM to interact with the PostgreSQL database.
 sqlalchemy==1.4.22
 
+# PostgreSQL DBAPI driver required by SQLAlchemy's postgresql:// engine (create_engine in
+# main.py and app/routers/financials.py, evaluated at import time). Absent previously, which
+# caused "No module named 'psycopg2'" at startup once the config class-access bug was fixed.
+# Pinned to 2.9.1 to match the reporting_metrics_service / authentication_service manifests.
+psycopg2-binary==2.9.1
+
 # Pydantic is used for data validation and serialization of request and response models.
 pydantic==1.10.13
 
@@ -18,5 +24,5 @@ httpx==0.27.0
 # Additional dependencies for the service
 fastapi==0.125.0  # FastAPI framework for building APIs
 uvicorn==0.15.0  # ASGI server for running FastAPI applications
-python-dotenv==1.0.1  # For loading environment variables from .env files
+python-dotenv==1.2.2  # For loading environment variables from .env files; patched release (PYSEC-2026-2270), requires Python >= 3.10
 loguru==0.5.3  # For enhanced logging capabilities

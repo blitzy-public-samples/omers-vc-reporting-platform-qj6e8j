@@ -111,7 +111,7 @@ stages:
         pip install pip-audit==2.9.0
 
         # These services deploy on Python 3.10, so the patched requests
-        # (>= 2.33.0), python-dotenv (1.0.1), urllib3 (>= 2.7.0), and click
+        # (>= 2.33.0), python-dotenv (1.2.2), urllib3 (>= 2.7.0), and click
         # (>= 8.2.0) are installable here and are therefore enforced (not ignored).
         # Each manifest is audited on its own because the services pin mutually
         # incompatible versions; per-manifest invocation resolves and audits each
@@ -177,14 +177,16 @@ stages:
           src/backend/metrics_input_service/requirements.txt"
 
         # The only suppressed advisories are those whose fix is not installable on
-        # Python 3.9 (click >= 8.2.0 needs py >= 3.10), would breach the Pydantic v1
-        # envelope (FastAPI < 0.126 holds starlette below 0.51), or are AAP-deferred.
-        # Any NEW or non-listed advisory fails the gate. Full rationale: security decision log.
+        # Python 3.9 (click >= 8.2.0 and python-dotenv 1.2.2 both need py >= 3.10),
+        # would breach the Pydantic v1 envelope (FastAPI < 0.126 holds starlette
+        # below 0.51), or are AAP-deferred. Any NEW or non-listed advisory fails the
+        # gate. Full rationale: security decision log.
         IGNORES=""
         # AAP-deferred dev/test toolchain advisory:
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-1845"   # pytest: fix 9.0.3 requires Python >= 3.10 (also AAP-deferred)
         # Fix requires Python >= 3.10 (this group's runtime is 3.9):
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2132"   # click (transitive via uvicorn): fix >= 8.2.0 needs py >= 3.10
+        IGNORES="$IGNORES --ignore-vuln PYSEC-2026-2270"   # python-dotenv: fix 1.2.2 needs py >= 3.10 (Python 3.10 services pin the patched 1.2.2)
         # Fix requires FastAPI >= 0.126 which drops Pydantic v1 (transitive starlette via fastapi 0.125.0):
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-161"    # starlette
         IGNORES="$IGNORES --ignore-vuln PYSEC-2026-248"    # starlette
