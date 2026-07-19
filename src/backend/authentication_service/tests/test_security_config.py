@@ -1,16 +1,20 @@
 # src/backend/authentication_service/tests/test_security_config.py
 
 """
-JWT security regression tests for the authentication service.
+Security regression tests for the authentication service.
 
-Security control verified: JWT decoding is restricted to HS256 (CWE-347 /
-CVE-2022-29217, algorithm confusion). These tests forge an ``alg=none`` token and
-drive it through the *production* decode path -- the ``/protected`` route of the
-application returned by ``create_app`` calls ``app/security.py::validate_token``,
-whose sole ``jwt.decode(..., algorithms=["HS256"])`` site is the control under
-test. A positive control (a genuine HS256 token is accepted) guarantees the
-negative assertions are not vacuously green, so a regression that widened the
-accepted algorithm set (e.g. permitting ``none``) would be caught here.
+Security controls verified:
+1. JWT decoding is restricted to HS256 (CWE-347 / CVE-2022-29217, algorithm
+   confusion). These tests forge an ``alg=none`` token and drive it through the
+   *production* decode path -- the ``/protected`` route of the application returned
+   by ``create_app`` calls ``app/security.py::validate_token``, whose sole
+   ``jwt.decode(..., algorithms=["HS256"])`` site is the control under test. A
+   positive control (a genuine HS256 token is accepted) guarantees the negative
+   assertions are not vacuously green, so a regression that widened the accepted
+   algorithm set (e.g. permitting ``none``) would be caught here.
+2. SECRET_KEY must not be blank/whitespace-only (CWE-798 / CWE-259). config.py
+   validates the key at import, so this control is exercised in a subprocess with a
+   32-character whitespace-only key, which must fail closed.
 """
 
 import base64
@@ -111,3 +115,39 @@ def test_jwt_decode_restricted_to_hs256():
 
     other_alg_token = jwt.encode({"sub": "attacker"}, SECRET_KEY, algorithm="HS512")
     assert validate_token(other_alg_token) is None
+
+
+# --- SECRET_KEY fail-closed at import (CWE-798 / CWE-259) --------------------------
+# config.py validates SECRET_KEY when the module is imported, so these controls are
+# exercised in a fresh subprocess (the module is already imported in this process).
+
+def _import_config_with_env(secret_key):
+    import subprocess
+
+    env = dict(os.environ)
+    env["SECRET_KEY"] = secret_key
+    env["DATABASE_URL"] = "postgresql://user:pass@localhost:5432/testdb"
+    env["CORS_ORIGINS"] = "http://localhost:3000"
+    env["PYTHONPATH"] = _REPO_ROOT
+    return subprocess.run(
+        [sys.executable, "-c", "import src.backend.authentication_service.config"],
+        cwd=_REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_whitespace_only_secret_key_rejected_at_import():
+    """A 32-char whitespace-only SECRET_KEY passes the length check but carries no
+    entropy; importing config.py must fail closed rather than accept it."""
+    proc = _import_config_with_env(" " * 32)
+    assert proc.returncode != 0
+    assert "blank or whitespace-only" in proc.stderr
+
+
+def test_valid_secret_key_accepted_at_import():
+    """Positive control: a real 32+ character SECRET_KEY imports cleanly, so the
+    negative assertion above is not vacuously green."""
+    proc = _import_config_with_env("x" * 40)
+    assert proc.returncode == 0, proc.stderr

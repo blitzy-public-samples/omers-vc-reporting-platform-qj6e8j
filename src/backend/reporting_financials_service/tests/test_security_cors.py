@@ -9,14 +9,12 @@ http(s) origins; and the application's CORS middleware must never combine
 The security control under test is the ``CORS_ORIGINS`` validator on
 ``config.Config`` (the real allow-list the service consumes) plus the middleware
 wiring in ``main.create_app``. The validator is exercised directly so the tests
-fail if the control is weakened. Binding to the real ``main.create_app`` is done
-via ``real_app`` below; its import chain has a pre-existing, out-of-scope defect
-(``app/routers/financials.py`` reads ``Config.DATABASE_URL`` as a class attribute,
-which is invalid under Pydantic v1 and raises ``AttributeError`` at import). Per
-AAP 0.8.2 that pre-existing non-security defect is not fixed here, so the
-real-factory test is marked ``xfail`` to keep the blocker visible (it becomes an
-``xpass`` once that unrelated defect is resolved) rather than masking it behind a
-synthetic application. Rationale detail lives in ``docs/security/decision-log.md``.
+fail if the control is weakened. The real application is built via
+``main.create_app`` in the ``real_app`` fixture below, and
+``test_real_app_cors_never_wildcard_with_credentials`` binds a ``TestClient`` to it
+and asserts the middleware never returns ``Access-Control-Allow-Origin: *`` together
+with ``Access-Control-Allow-Credentials: true`` and reflects only the configured
+origin. Rationale detail lives in ``docs/security/decision-log.md``.
 """
 
 import os
@@ -86,41 +84,44 @@ def test_explicit_allowlist_accepted():
     assert "*" not in cfg.CORS_ORIGINS
 
 
-# --- Real application factory: middleware wiring (visible pre-existing blocker) ----
+# --- Real application factory: middleware wiring ----------------------------------
 
 @pytest.fixture
 def real_app():
     """Construct the real application via ``main.create_app``.
 
-    Import is performed lazily inside the fixture so the pre-existing app-chain
-    defect surfaces as a test outcome rather than a module collection error.
+    Imported lazily inside the fixture so the CORS assertions run against the real
+    middleware wiring produced by the application factory.
     """
     from src.backend.reporting_financials_service.main import create_app
 
     return create_app()
 
 
-@pytest.mark.xfail(
-    reason=(
-        "Pre-existing out-of-scope defect (AAP 0.8.2): "
-        "app/routers/financials.py reads Config.DATABASE_URL as a class attribute "
-        "(invalid under Pydantic v1), breaking main.create_app import. Kept visible "
-        "as xfail; see docs/security/decision-log.md."
-    ),
-    strict=False,
-    raises=Exception,
-)
 def test_real_app_cors_never_wildcard_with_credentials(real_app):
-    """The real app must reflect only the configured origin, never '*' with credentials."""
+    """The real app must reflect only the configured origin, never '*' with credentials.
+
+    Kills the CWE-942 mutation (``allow_origins=['*']`` with ``allow_credentials=True``):
+    under that mutation the untrusted-origin response carries
+    ``Access-Control-Allow-Origin: *`` and the allowed-origin response stops reflecting
+    the specific origin, so the assertions below fail.
+    """
     client = TestClient(real_app)
 
-    # Untrusted origin is neither reflected nor answered with a wildcard.
+    # An untrusted origin must never be answered with a wildcard nor reflected back,
+    # and the wildcard-with-credentials combination must never appear.
     resp = client.get("/", headers={"Origin": UNTRUSTED_ORIGIN})
     acao = resp.headers.get("access-control-allow-origin")
+    acac = resp.headers.get("access-control-allow-credentials")
     assert acao != "*"
     assert acao != UNTRUSTED_ORIGIN
+    assert not (acao == "*" and acac == "true")
 
-    # Configured origin is reflected specifically (never "*") when credentials are on.
+    # The configured origin must be reflected specifically (never "*"), even though
+    # credentials are enabled for it.
     resp = client.get("/", headers={"Origin": ALLOWED_ORIGIN})
     acao = resp.headers.get("access-control-allow-origin")
+    acac = resp.headers.get("access-control-allow-credentials")
+    assert acao == ALLOWED_ORIGIN
     assert acao != "*"
+    assert not (acao == "*" and acac == "true")

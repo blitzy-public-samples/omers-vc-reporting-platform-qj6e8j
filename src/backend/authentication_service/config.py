@@ -91,6 +91,10 @@ if not DATABASE_URL:
     raise ValueError("DATABASE_URL must be set in environment variables")
 
 # Additional configuration checks
+# CWE-798/CWE-259: a whitespace-only key passes the length check below but carries no
+# entropy and is trivially predictable; reject blank/whitespace-only keys first.
+if not SECRET_KEY.strip():
+    raise ValueError("SECRET_KEY must not be blank or whitespace-only")
 if len(SECRET_KEY) < 32:
     raise ValueError("SECRET_KEY should be at least 32 characters long for security")
 

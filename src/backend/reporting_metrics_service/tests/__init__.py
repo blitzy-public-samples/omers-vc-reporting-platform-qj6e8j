@@ -10,16 +10,15 @@ present at this point for ``config.Settings()`` to construct during collection.
 
 This initializer is intentionally side-effect-free beyond environment
 provisioning. It does NOT import the application factory (``main.app``) or any
-module under the ``app`` package. Those imports have a pre-existing, out-of-scope
-import-time defect (``app/models/models.py`` does ``from sqlalchemy import UUID``,
-which SQLAlchemy 1.4.x does not provide; ``app/database.py`` / ``app/schemas.py``
-are absent) that is unrelated to the security remediation. Keeping this file free
-of the application import chain is what lets the configuration security regression
-test (``test_security_config.py``) import ``config`` and collect cleanly. The
-broken application import is not masked: ``test_metrics.py`` still imports the
-application chain directly, so that pre-existing defect continues to surface
-loudly at its own collection. Rationale detail lives in
-``docs/security/decision-log.md``.
+module under the ``app`` package; it exists only to make ``config`` importable
+during collection for the configuration security regression test
+(``test_security_config.py``). The application import chain is healthy —
+``app/models/models.py`` imports ``UUID`` from ``sqlalchemy.dialects.postgresql``
+(the correct location, which SQLAlchemy 1.4.x exposes), ``app/database.py`` and
+``app/schemas.py`` are present, and ``main.app`` imports and starts cleanly
+(verified at runtime). ``test_metrics.py`` imports that chain and collects without
+error (its async cases skip when no async plugin is installed). Rationale detail
+lives in ``docs/security/decision-log.md``.
 """
 
 import os

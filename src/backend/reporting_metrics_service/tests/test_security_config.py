@@ -63,6 +63,14 @@ def test_secret_too_short_fails_closed(monkeypatch):
         _make_settings(SECRET_KEY="x" * (MIN_SECRET_LEN - 1))
 
 
+def test_secret_whitespace_only_fails_closed(monkeypatch):
+    # CWE-798/CWE-259: a 32-character whitespace-only key satisfies the length minimum
+    # but carries no entropy; it must be rejected.
+    monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
+    with pytest.raises(pydantic.ValidationError):
+        _make_settings(SECRET_KEY=" " * MIN_SECRET_LEN)
+
+
 def test_no_insecure_secret_default_resolvable(monkeypatch):
     # CWE-798: no insecure hard-coded default may be resolvable. SECRET_KEY is a
     # required field, so with it absent, construction fails closed.

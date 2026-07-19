@@ -3,6 +3,7 @@
 # FastAPI web framework and the uvicorn ASGI server that runs the application (container CMD).
 fastapi==0.125.0
 uvicorn==0.15.0
+h11>=0.16.0  # CVE-2025-43859 (CWE-444): pin uvicorn's HTTP/1.1 parser to the patched release; h11 < 0.16.0 enables request smuggling via lenient chunked line terminators.
 
 # SQLAlchemy is used for ORM operations to define and interact with the PostgreSQL database tables.
 sqlalchemy==1.4.22

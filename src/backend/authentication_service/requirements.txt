@@ -10,6 +10,10 @@ fastapi==0.125.0
 # Purpose: To run the FastAPI application.
 uvicorn==0.15.0
 
+# HTTP/1.1 protocol library used by uvicorn
+# Purpose: pin the request parser to the patched release.
+h11>=0.16.0  # CVE-2025-43859 (CWE-444): h11 < 0.16.0 leniently parses chunked line terminators, enabling request smuggling.
+
 # JWT token handling
 # Version: 2.3.0
 # Purpose: To encode and decode JSON Web Tokens for secure token-based authentication.

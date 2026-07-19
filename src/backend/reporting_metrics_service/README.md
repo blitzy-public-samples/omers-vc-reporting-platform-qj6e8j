@@ -53,11 +53,11 @@ Versions below reflect this service's pinned `requirements.txt` and its containe
    - Copy the `.env.sample` file to `.env`
    - Edit the `.env` file and fill in the necessary configuration values
 
-6. Run the FastAPI application:
+6. Run the FastAPI application. Because the service uses absolute `src.backend.*` imports, start it from the **repository root** (not the service directory) so those imports resolve:
    ```bash
-   uvicorn main:app --reload
+   PYTHONPATH=. uvicorn src.backend.reporting_metrics_service.main:app --reload
    ```
-   > **Known limitation:** the application currently fails to import at startup because of a pre-existing, out-of-scope defect (`app/models/models.py` imports `UUID` from `sqlalchemy`, which the pinned SQLAlchemy 1.4.x does not expose). This is a documented follow-up (see the root [`SECURITY.md`](../../../SECURITY.md)); the security configuration is still validated by the service's `tests/test_security_config.py` suite.
+   The application imports and starts cleanly: `app/models/models.py` imports `UUID` from `sqlalchemy.dialects.postgresql` (the correct location, which SQLAlchemy 1.4.x exposes).
 
 ## Usage Instructions
 

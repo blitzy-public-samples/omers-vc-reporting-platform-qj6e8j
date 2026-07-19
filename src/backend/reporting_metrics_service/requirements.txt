@@ -10,6 +10,9 @@ pytest==6.2.4
 # Uvicorn ASGI server for running FastAPI applications
 uvicorn==0.15.0
 
+# h11 HTTP/1.1 protocol library used by uvicorn
+h11>=0.16.0  # CVE-2025-43859 (CWE-444): pin the request parser to the patched release; h11 < 0.16.0 enables request smuggling via lenient chunked line terminators.
+
 # Pydantic for data validation and settings management
 pydantic==1.10.13
 

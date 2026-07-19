@@ -13,9 +13,9 @@ The Reporting Financials Service is a critical component of the OMERS Ventures b
 
 ## Requirements
 
-Versions below reflect this service's pinned `requirements.txt` and its container base image (`python:3.9-slim`).
+Versions below reflect this service's pinned `requirements.txt` and its container base image (`python:3.10-slim`).
 
-- Python 3.9 (container base `python:3.9-slim`)
+- Python 3.10 (container base `python:3.10-slim`)
 - FastAPI 0.125.0
 - SQLAlchemy 1.4.22
 - Pydantic 1.10.13 (v1 line — `BaseSettings`)
@@ -59,11 +59,11 @@ Versions below reflect this service's pinned `requirements.txt` and its containe
    - `CORS_ORIGINS`: comma-separated list of explicitly allowed browser origins; **must not be `*`**. Declare the real origins for each environment before deploying to a browser-facing environment (example: `CORS_ORIGINS=http://localhost:3000`).
    - `DATABASE_URL`: **required** PostgreSQL connection string; it is typed as a Pydantic `PostgresDsn`, so it must be a valid `postgresql://user:pass@host:port/db` URL.
 
-5. Run the application:
+5. Run the application. Because the service uses absolute `src.backend.*` imports, start it from the **repository root** (not the service directory) so those imports resolve:
    ```bash
-   uvicorn main:app --reload
+   PYTHONPATH=. uvicorn src.backend.reporting_financials_service.main:app --reload
    ```
-   > **Known limitation:** the application currently fails to import at startup because of a pre-existing, out-of-scope defect (`app/routers/financials.py` reads `Config.DATABASE_URL` as a class attribute, which is invalid under Pydantic v1). This is a documented follow-up (see the root [`SECURITY.md`](../../../SECURITY.md)); the security configuration and CORS controls are still validated by the service's test suites.
+   The application imports and starts cleanly: `app/routers/financials.py` reads `config.DATABASE_URL` from the settings instance (the earlier class-attribute configuration-import defect has been resolved).
 
 ## Docker Deployment
 

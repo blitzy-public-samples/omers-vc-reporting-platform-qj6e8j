@@ -53,6 +53,14 @@ class Settings(BaseSettings):
             )
         return v
 
+    @validator('SECRET_KEY', allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
+    def _reject_blank_secret_key(cls, v):
+        # CWE-798/CWE-259: a whitespace-only value satisfies min_length but carries no
+        # entropy and is trivially predictable; reject blank/whitespace-only secrets.
+        if not v.strip():
+            raise ValueError("SECRET_KEY must not be blank or whitespace-only.")
+        return v
+
     @validator('BACKEND_CORS_ORIGINS', pre=True, always=True)
     def _validate_cors_origins(cls, v):
         # CWE-942: fail closed. Reject wildcard, empty, or malformed origins in a Pydantic

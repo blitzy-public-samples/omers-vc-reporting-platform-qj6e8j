@@ -229,10 +229,10 @@ stages:
         # This manifest's patched requests/urllib3 require Python >= 3.10, so the
         # audit runs on Python 3.11 to confirm they resolve cleanly. No requests/
         # urllib3 ignores apply here, so the gate enforces those fixes for this
-        # manifest. NOTE: the function app's deploy runtime in
-        # infrastructure/terraform/main.tf is currently PYTHON|3.9; aligning it to
-        # >= 3.10 so these patched pins install at deploy time is a documented
-        # deployment follow-up (see SECURITY.md / the security decision log).
+        # manifest. The function app's deploy runtime in
+        # infrastructure/terraform/main.tf is PYTHON|3.11, which matches this audit
+        # runtime and already satisfies the >= 3.10 requirement, so these patched
+        # pins install cleanly at deploy time.
         if ! pip-audit -r src/functions/data_transformation/requirements.txt --progress-spinner off; then
           echo "##vso[task.logissue type=error]pip-audit found vulnerabilities in src/functions/data_transformation/requirements.txt"
           echo "Function dependency vulnerability scan FAILED - advisories present (see above)."

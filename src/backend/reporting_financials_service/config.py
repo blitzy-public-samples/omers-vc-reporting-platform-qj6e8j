@@ -26,7 +26,8 @@ class Config(BaseSettings):
     DATABASE_URL: PostgresDsn = Field(..., env="DATABASE_URL")
 
     # API configuration
-    API_KEY: SecretStr = os.getenv("API_KEY", "<your_api_key_here>")
+    # CWE-798/CWE-259: require from the environment; no predictable placeholder default.
+    API_KEY: SecretStr = Field(..., env="API_KEY")
 
     # Logging configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
@@ -75,6 +76,36 @@ class Config(BaseSettings):
                     f"Invalid CORS origin (expected scheme://host[:port] with no "
                     f"credentials/path/query/fragment): {origin}"
                 )
+        return v
+
+    @validator('API_KEY', allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
+    def _reject_placeholder_api_key(cls, v):
+        # CWE-798/CWE-259: require a real key from the environment. Reject blank/
+        # whitespace-only values and the shipped placeholder so the service fails closed
+        # rather than run with a predictable credential.
+        s = v.get_secret_value()
+        if not s.strip() or s.strip() == "<your_api_key_here>":
+            raise ValueError(
+                "API_KEY must be provided via the environment; blank or placeholder "
+                "values are not permitted."
+            )
+        return v
+
+    @validator('JWT_SECRET_KEY', allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
+    def _reject_blank_jwt_secret(cls, v):
+        # CWE-798/CWE-259: a whitespace-only value satisfies min_length but carries no
+        # entropy and is trivially predictable; reject blank/whitespace-only secrets.
+        if not v.get_secret_value().strip():
+            raise ValueError("JWT_SECRET_KEY must not be blank or whitespace-only.")
+        return v
+
+    @validator('JWT_ALGORITHM', allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
+    def _validate_jwt_algorithm(cls, v):
+        # CWE-347: restrict token signing to vetted HMAC algorithms; reject 'none' and any
+        # unlisted/asymmetric value to prevent algorithm-confusion attacks.
+        allowed = {'HS256', 'HS384', 'HS512'}
+        if v not in allowed:
+            raise ValueError(f"JWT_ALGORITHM must be one of {sorted(allowed)}; got {v!r}.")
         return v
 
     class Config:

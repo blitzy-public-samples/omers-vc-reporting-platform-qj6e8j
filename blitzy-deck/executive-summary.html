@@ -679,7 +679,7 @@
               <tr>
                 <th class="layer" scope="row">Containers</th>
                 <td class="before">Root user, <span class="mono">python:3.8-slim</span> (EOL)</td>
-                <td class="after">Non-root <span class="mono">USER</span> (uid 1000), supported base image</td>
+                <td class="after">Non-root <span class="mono">USER</span> (uid 1000), supported base image (default <span class="mono">docker run</span> still needs the namespace packaged for the build context &mdash; see the residual-risk slide)</td>
               </tr>
               <tr>
                 <th class="layer" scope="row">CI/CD</th>
@@ -763,7 +763,7 @@
         <ul>
           <li class="fragment"><strong>Pydantic kept on the v1 line</strong> (1.10.13) &mdash; the <span class="mono">BaseSettings</span> API is preserved; <strong>no</strong> Pydantic v2 migration.</li>
           <li class="fragment"><strong>FastAPI capped <span class="mono">&lt; 0.126.0</span></strong> (pinned 0.125.0) &mdash; retains Pydantic v1 support while clearing CVE-2024-24762.</li>
-          <li class="fragment"><strong>Minimal Change Clause honored</strong> &mdash; version bumps only; <strong>no</strong> package replacements; <strong>no</strong> public-API contract changes.</li>
+          <li class="fragment"><strong>Minimal Change Clause applied to the dependency upgrades</strong> &mdash; version bumps only; <strong>no</strong> package replacements; <strong>no</strong> public-API contract changes.</li>
           <li class="fragment"><strong>No import statements changed by the dependency upgrades</strong> &mdash; every upgrade stays within a compatible API line.</li>
         </ul>
         <p class="caption fragment">Trade-off: because the FastAPI/Pydantic-v1 envelope is frozen, a small set of <span class="mono">starlette</span>/<span class="mono">click</span> advisories cannot be cleared without breaching it; these remain under documented CI waivers (see next slide).</p>
@@ -779,7 +779,7 @@
           <li class="fragment"><strong>Secret-required configuration tests</strong> &mdash; <span class="mono">JWT_SECRET_KEY</span> / <span class="mono">SECRET_KEY</span> required and length-enforced (min 32); no <span class="mono">"your-secret-key"</span> default resolvable.</li>
           <li class="fragment"><strong>Secret / IaC scan</strong> &mdash; no plaintext password literal remains in source; the <span class="mono">main.tf</span> credential fix validates in isolation.</li>
           <li class="fragment"><strong>Container non-root check</strong> &mdash; built images run as a non-zero uid (<span class="mono">id -u</span> &rarr; 1000).</li>
-          <li class="fragment"><strong>Regression suites re-run</strong> &mdash; the security suites pass; a few full-application suites do not yet collect because of pre-existing, documented blockers (see next slide).</li>
+          <li class="fragment"><strong>Regression suites re-run</strong> &mdash; the security suites pass and the application modules import and boot cleanly (verified at runtime); one pre-existing non-security test (<span class="mono">reporting-financials/tests/test_financials.py</span>) does not collect because it imports a symbol the router module does not export &mdash; a broken-test defect unrelated to this remediation.</li>
         </ul>
       </section>
 
@@ -820,7 +820,7 @@
           <li class="fragment">Security policy, disclosure &amp; residual items: <strong><span class="mono">SECURITY.md</span></strong>.</li>
           <li class="fragment">Onboarding: <strong><span class="mono">README.md</span></strong> and service READMEs updated for the CORS/secret environment variables and non-root containers.</li>
         </ul>
-        <p class="lead fragment" style="margin-top: var(--gap); color: var(--text);"><strong>Minimal, targeted, and verifiable</strong> remediation of the in-scope findings &mdash; with residual items documented for follow-up.</p>
+        <p class="lead fragment" style="margin-top: var(--gap); color: var(--text);"><strong>Minimal, targeted, and verifiable</strong> remediation of the in-scope findings &mdash; full production-readiness (image build-context packaging, the architectural authentication rework, and the residual advisories) remains documented follow-up on the residual-risk slide.</p>
         <div class="footer-mark">
           <div class="wordmark sm"><span class="bolt" aria-hidden="true">&#9889;</span><span class="name">Blitzy</span></div>
           <span>OMERS Ventures Backend Platform &middot; Security Remediation</span>

@@ -3,6 +3,7 @@
 
 fastapi==0.125.0  # Web framework serving the API Gateway application (run via uvicorn in the container CMD).
 uvicorn==0.15.0  # ASGI server used to run the FastAPI application.
+h11>=0.16.0  # CVE-2025-43859 (CWE-444): pin uvicorn's HTTP/1.1 parser to the patched release; h11 < 0.16.0 leniently parses chunked line terminators, enabling request smuggling.
 pydantic==1.10.13  # Used for data validation and settings management within the data models, ensuring data integrity and compliance with defined schemas.
 PyJWT==2.13.0  # To encode and decode JSON Web Tokens for secure token-based authentication, supporting OAuth 2.0 implementation.
 python-dotenv==1.0.1  # Required transitively: api_gateway imports authentication_service.app.security -> authentication_service.config, which calls dotenv.load_dotenv() at import time. Held at 1.0.1 on this service's python:3.9-slim base; the fix for PYSEC-2026-2270 (python-dotenv 1.2.2) requires Python >= 3.10, so that advisory is waived in CI for this Python 3.9 service (see the SecurityScan gate and the security decision log).

@@ -43,13 +43,15 @@ Versions below reflect this service's pinned `requirements.txt` and its containe
    cp .env.sample .env
    ```
    Edit the `.env` file to set the appropriate values for your development environment.
-6. Run the FastAPI application using Uvicorn (`main.py` exposes the ASGI app instance as `app = create_app()`):
+6. Run the FastAPI application using Uvicorn. This service uses repository-root absolute imports (`src.backend.metrics_input_service...`), so run it **from the repository root** with the repository root on `PYTHONPATH` (`main.py` exposes the ASGI app instance as `app = create_app()`):
    ```bash
-   uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+   # from the repository root
+   PYTHONPATH=. uvicorn src.backend.metrics_input_service.main:app --host 0.0.0.0 --port 8000 --reload
    ```
-7. Run the test suite to ensure everything is set up correctly:
+7. Run the test suite (also **from the repository root**) to ensure everything is set up correctly:
    ```bash
-   pytest
+   # from the repository root
+   PYTHONPATH=. python -m pytest src/backend/metrics_input_service/tests
    ```
 
 ## Environment Variables
@@ -70,10 +72,10 @@ The local development template is `.env.sample` — copy it to `.env` (see Setup
 ## Usage Instructions
 
 1. Access the API documentation at `http://localhost:8000/docs` to view available endpoints and their specifications.
-2. Use the POST `/metrics/` endpoint to submit new financial metrics data.
-3. Use the GET `/metrics/` endpoint to retrieve financial metrics data based on query parameters such as company ID and reporting period.
+2. Use the POST `/api/v1/metrics/metrics/` endpoint to submit new financial metrics data.
+3. Use the GET `/api/v1/metrics/metrics/` endpoint to retrieve financial metrics data based on query parameters such as company ID and reporting period.
 
-> The routes are mounted under the `/api/v1/metrics` prefix (see `main.py`), so the full paths are `POST /api/v1/metrics/metrics/` and `GET /api/v1/metrics/metrics/`.
+> These routes are mounted under the `/api/v1/metrics` prefix (see `main.py`'s `include_router`) and the router defines `/metrics/`, so the full paths are `POST /api/v1/metrics/metrics/` and `GET /api/v1/metrics/metrics/`. A request to the bare `/metrics/` path returns 404.
 
 ## Deployment Instructions
 
@@ -93,10 +95,10 @@ The local development template is `.env.sample` — copy it to `.env` (see Setup
 
 ## API Endpoints
 
-- `POST /metrics/`: Submit new financial metrics data
-- `GET /metrics/`: Retrieve financial metrics data based on query parameters
+- `POST /api/v1/metrics/metrics/`: Submit new financial metrics data
+- `GET /api/v1/metrics/metrics/`: Retrieve financial metrics data based on query parameters
 
-For detailed API documentation, refer to the Swagger UI available at `/docs` when running the service.
+These are the full mounted paths (the `/api/v1/metrics` router prefix plus the router's own `/metrics/` route). For detailed API documentation, refer to the Swagger UI available at `/docs` when running the service.
 
 ## Security Considerations
 

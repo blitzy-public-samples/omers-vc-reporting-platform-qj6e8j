@@ -25,6 +25,7 @@ import os
 os.environ.setdefault("DATABASE_URL", "postgresql://user:pass@localhost:5432/testdb")
 os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-thirty-two-chars-min-000")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:3000")
+os.environ.setdefault("API_KEY", "test-api-key-value")
 
 import pytest
 import pydantic
@@ -34,12 +35,17 @@ from src.backend.reporting_financials_service.config import Config
 MIN_SECRET_LEN = 32
 _VALID_DB_URL = "postgresql://testuser:testpass@localhost:5432/testdb"
 _VALID_SECRET = "x" * MIN_SECRET_LEN
+_VALID_API_KEY = "test-api-key-value"
 
 
 def _make_config(**overrides):
     # Instantiate the settings class directly; no .env file, no module reload. Required
     # fields are supplied so a single control can be isolated per test.
-    params = {"JWT_SECRET_KEY": _VALID_SECRET, "DATABASE_URL": _VALID_DB_URL}
+    params = {
+        "JWT_SECRET_KEY": _VALID_SECRET,
+        "DATABASE_URL": _VALID_DB_URL,
+        "API_KEY": _VALID_API_KEY,
+    }
     params.update(overrides)
     return Config(_env_file=None, **params)
 
@@ -79,6 +85,27 @@ def test_secret_too_short_fails_closed(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
     with pytest.raises(pydantic.ValidationError):
         Config(_env_file=None)
+
+
+def test_secret_whitespace_only_fails_closed(monkeypatch):
+    # CWE-798/CWE-259: a 32-character whitespace-only key satisfies the length minimum
+    # but carries no entropy; it must be rejected.
+    monkeypatch.setenv("JWT_SECRET_KEY", " " * MIN_SECRET_LEN)
+    monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
+    with pytest.raises(pydantic.ValidationError):
+        Config(_env_file=None)
+
+
+def test_jwt_algorithm_none_rejected():
+    # CWE-347: the 'none' algorithm (and any unlisted/asymmetric value) must be rejected
+    # to prevent algorithm-confusion.
+    with pytest.raises(pydantic.ValidationError):
+        _make_config(JWT_ALGORITHM="none")
+
+
+def test_jwt_algorithm_hs_variants_accepted():
+    for alg in ("HS256", "HS384", "HS512"):
+        assert _make_config(JWT_ALGORITHM=alg).JWT_ALGORITHM == alg
 
 
 # --- DATABASE_URL (DSN) required, no credential-bearing default -------------------
@@ -127,3 +154,34 @@ def test_cors_explicit_allowlist_accepted():
     cfg = _make_config(CORS_ORIGINS="https://app.example.com")
     assert cfg.CORS_ORIGINS == ["https://app.example.com"]
     assert "*" not in cfg.CORS_ORIGINS
+
+
+# --- API_KEY required, no predictable placeholder default (CWE-798/CWE-259) -------
+
+def test_api_key_required_no_placeholder_default():
+    # The field is required, so no placeholder default is resolvable.
+    assert Config.__fields__["API_KEY"].required is True
+
+
+def test_api_key_absent_fails_closed(monkeypatch):
+    monkeypatch.delenv("API_KEY", raising=False)
+    monkeypatch.setenv("JWT_SECRET_KEY", _VALID_SECRET)
+    monkeypatch.setenv("DATABASE_URL", _VALID_DB_URL)
+    with pytest.raises(pydantic.ValidationError):
+        Config(_env_file=None)
+
+
+def test_api_key_placeholder_rejected():
+    # CWE-798: the shipped placeholder must not be accepted even if explicitly set.
+    with pytest.raises(pydantic.ValidationError):
+        _make_config(API_KEY="<your_api_key_here>")
+
+
+def test_api_key_blank_rejected():
+    with pytest.raises(pydantic.ValidationError):
+        _make_config(API_KEY="   ")
+
+
+def test_api_key_valid_accepted():
+    cfg = _make_config(API_KEY="a-real-secret-api-key")
+    assert cfg.API_KEY.get_secret_value() == "a-real-secret-api-key"
