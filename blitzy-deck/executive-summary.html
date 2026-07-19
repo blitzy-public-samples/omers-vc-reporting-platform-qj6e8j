@@ -128,6 +128,13 @@
       position: absolute;
       left: 50%;
       top: 50%;
+      /* Size to content and let the engine scale each slide to fit the viewport
+         (see fitSlide() in the script block). Removing the fixed 92vh cap and its
+         intercepted internal scroll eliminates the vertical clipping that was
+         otherwise unreachable at short/small viewports. */
+      max-height: none;
+      overflow: visible;
+      transform-origin: center center;
       transform: translate(-50%, -50%) scale(0.985);
       opacity: 0;
       visibility: hidden;
@@ -137,7 +144,9 @@
     html.js .reveal .slides > section.present {
       opacity: 1;
       visibility: visible;
-      transform: translate(-50%, -50%) scale(1);
+      /* --fit is computed per slide by fitSlide() so the full slide fits the
+         viewport height (defaults to 1 = no scaling when it already fits). */
+      transform: translate(-50%, -50%) scale(var(--fit, 1));
       pointer-events: auto;
     }
     /* The focus target heading should not paint a distracting outline box. */
@@ -566,6 +575,23 @@
          bottom-left; hide it so it cannot overlap content or chrome. */
       .hint { display: none; }
     }
+    /* Very narrow viewports (phones): the wide before/after and CVE tables must
+       fit within the slide width rather than hiding columns behind a hard-to-
+       discover horizontal scroll. A fixed table layout pins the table to the
+       wrapper width, equal-width columns wrap their content (headers included),
+       and long monospace tokens break; the scale-to-fit engine then absorbs the
+       added vertical height so nothing clips in either axis. */
+    @media (max-width: 480px) {
+      .table-wrap { overflow-x: hidden; }
+      table { min-width: 0; width: 100%; table-layout: fixed; font-size: 12px; }
+      thead th, tbody td, tbody th[scope="row"], th.layer, td.layer {
+        white-space: normal;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        padding: 7px 8px;
+      }
+      .mono { white-space: normal; word-break: break-all; overflow-wrap: anywhere; }
+    }
     @media (prefers-reduced-motion: reduce) {
       html.js .reveal .slides > section,
       html.js .fragment,
@@ -923,6 +949,21 @@
       }
     }
 
+    // Scale the active slide down so its full content fits the viewport height,
+    // preventing vertical clipping at short or small viewports (mirrors reveal.js
+    // "scale to fit" layout). offsetHeight is the pre-transform layout height, so
+    // it is unaffected by the CSS scale set here; the slide is never upscaled
+    // beyond 1. Fragments occupy layout space even before they are revealed, so
+    // the measured height already accounts for the fully-revealed slide.
+    function fitSlide() {
+      var slide = slides[current];
+      if (!slide) { return; }
+      var natural = slide.offsetHeight;
+      var avail = window.innerHeight;
+      var scale = (natural > 0 && natural > avail) ? clamp(avail / natural, 0.5, 1) : 1;
+      slide.style.setProperty("--fit", scale.toFixed(4));
+    }
+
     // Show a given slide. revealAllFragments=true marks every fragment visible
     // (used when navigating backwards into a slide). focusHeading moves focus
     // to the slide heading (used for user-initiated navigation).
@@ -940,6 +981,7 @@
       updateHash();
       updateChrome();
       announceAndFocus(focusHeading);
+      fitSlide();
     }
 
     function next() {
@@ -1046,6 +1088,16 @@
       document.addEventListener("touchstart", onTouchStart, { passive: true });
       document.addEventListener("touchend", onTouchEnd, { passive: true });
       window.addEventListener("hashchange", onHashChange);
+
+      // Re-fit the active slide when the viewport changes (debounced to one
+      // measurement per animation frame) and once after full load, when fonts
+      // and layout are final.
+      var fitRAF = null;
+      window.addEventListener("resize", function () {
+        if (fitRAF) { cancelAnimationFrame(fitRAF); }
+        fitRAF = requestAnimationFrame(fitSlide);
+      });
+      window.addEventListener("load", fitSlide);
 
       // Initial render does not steal focus (avoids a jarring focus jump on load).
       showSlide(readHash(), false, false);
