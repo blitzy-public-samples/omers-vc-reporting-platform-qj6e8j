@@ -32,7 +32,7 @@ def get_fx_rates() -> Dict[str, float]:
         requests.RequestException: If there's an error fetching the FX rates.
     """
     try:
-        response = requests.get(FX_RATES_API_URL, headers={"Authorization": f"Bearer {FX_RATES_API_KEY}"})
+        response = requests.get(FX_RATES_API_URL, headers={"Authorization": f"Bearer {FX_RATES_API_KEY}"}, timeout=30)
         response.raise_for_status()
         fx_data = response.json()
         return fx_data['rates']
@@ -66,7 +66,9 @@ def calculate_derivative_metrics(df: pd.DataFrame) -> pd.DataFrame:
     
     return df
 
-@func.Function
+# Triggers/bindings are declared in function.json (Azure Functions v1 programming model),
+# not via decorators. transform_data is a plain callable (the function.json entryPoint) and
+# is imported directly by __init__.py and by the unit tests.
 def transform_data(input_data: Dict) -> Dict:
     """
     Performs data transformation tasks including currency conversion and calculation of derivative metrics.
@@ -106,8 +108,8 @@ def transform_data(input_data: Dict) -> Dict:
         logger.error(f"Error in data transformation: {str(e)}")
         raise
 
-# Timer trigger configuration
-@func.timer_trigger(schedule="0 */5 * * * *", arg_name="myTimer", run_on_startup=True)
+# Timer-trigger handler. Binding (schedule "0 */5 * * * *") is declared in function.json
+# under the v1 programming model; no decorator is used.
 def main(myTimer: func.TimerRequest, outputQueue: func.Out[str]) -> None:
     """
     Main function triggered every 5 minutes to perform data transformation tasks.
@@ -151,8 +153,8 @@ def main(myTimer: func.TimerRequest, outputQueue: func.Out[str]) -> None:
         logger.error(f"Error in main function: {str(e)}")
         # In a production environment, we might want to implement retry logic or alert mechanisms here
 
-# HTTP trigger for manual execution or testing
-@func.http_trigger(authLevel=func.AuthLevel.FUNCTION)
+# HTTP-trigger handler for manual execution or testing. Binding (authLevel "function")
+# is declared in function.json under the v1 programming model; no decorator is used.
 def manual_trigger(req: func.HttpRequest, outputQueue: func.Out[str]) -> func.HttpResponse:
     """
     HTTP trigger function for manual execution or testing of the data transformation process.

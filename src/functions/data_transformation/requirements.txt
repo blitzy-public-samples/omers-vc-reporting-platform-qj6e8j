@@ -1,8 +1,12 @@
+# Supported Python runtime: 3.11 (the deployed Azure Functions runtime; see infrastructure/terraform/main.tf).
+# requests and urllib3 are pinned to their patched releases; these fixes require Python >= 3.10.
+
 # Azure Functions SDK
 azure-functions==1.15.0  # Latest version as of the time of writing
 
 # HTTP requests library
-requests==2.31.0  # Latest stable version
+requests==2.33.0  # Patched release (PYSEC-2026-2275); requires Python >= 3.10
+urllib3==2.7.0  # Patched release (PYSEC-2026-141, PYSEC-2026-142); requires Python >= 3.10
 
 # Data manipulation and analysis
 pandas==2.0.3  # Latest stable version

@@ -8,7 +8,9 @@ Requirements addressed:
   Ensure the API supports configuration management to handle different environments and settings.
 """
 
-from pydantic import BaseSettings  # version 1.8.2
+from typing import List, Union
+
+from pydantic import BaseSettings, validator  # version 1.10.13
 
 class Settings(BaseSettings):
     """
@@ -23,6 +25,49 @@ class Settings(BaseSettings):
     database_url: str
     api_key: str
     log_level: str
+
+    # CWE-942: explicit non-wildcard CORS allow-list (never "*"); overridable via env.
+    # Union[str, List[str]] keeps Pydantic v1 from JSON-parsing the env var, so a
+    # comma-separated CORS_ORIGINS string reaches the validator (see .env.sample / README),
+    # matching the api_gateway / reporting_financials convention.
+    CORS_ORIGINS: Union[str, List[str]] = ['http://localhost:3000', 'https://localhost:3000']
+
+    @validator('CORS_ORIGINS', pre=True, always=True, allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
+    def _validate_cors_origins(cls, v):
+        # CWE-942: reject wildcard, empty, or malformed origins (fail closed). The env
+        # value is a JSON array (canonical, see .env.sample); a comma-separated string is
+        # also accepted. Each entry must be a serialized origin: http(s) scheme + host,
+        # optional valid port, and no credentials, path, query, or fragment.
+        if isinstance(v, str):
+            s = v.strip()
+            if s.startswith('['):
+                import json
+                v = json.loads(s)
+            else:
+                v = [origin.strip() for origin in s.split(',') if origin.strip()]
+        from urllib.parse import urlsplit
+        if not v:
+            raise ValueError("CORS_ORIGINS must be a non-empty explicit allow-list; wildcard '*' is not permitted.")
+        for origin in v:
+            if origin == '*':
+                raise ValueError("Wildcard '*' CORS origin is not permitted with credentials (CWE-942).")
+            parts = urlsplit(origin)
+            try:
+                parts.port  # accessing an invalid port raises ValueError
+            except ValueError:
+                raise ValueError(f"Invalid CORS origin (bad port): {origin}")
+            if (parts.scheme not in ('http', 'https')
+                    or not parts.hostname
+                    or parts.username is not None
+                    or parts.password is not None
+                    or parts.path
+                    or parts.query
+                    or parts.fragment):
+                raise ValueError(
+                    f"Invalid CORS origin (expected scheme://host[:port] with no "
+                    f"credentials/path/query/fragment): {origin}"
+                )
+        return v
 
     class Config:
         env_file = ".env"
@@ -48,17 +93,3 @@ settings = load_settings()
 
 # Note: Ensure that the .env file is correctly set up with the necessary environment variables
 # such as DATABASE_URL, API_KEY, and LOG_LEVEL to avoid runtime errors.
-
-# Imports from related modules
-from src.backend.metrics_input_service.app.models.models import MetricsInput
-from src.backend.metrics_input_service.app.routers.metrics import router as metrics_router
-
-# Ensure that all imported modules and components are correctly utilized within the service
-# and that any unused imports are removed to maintain code cleanliness and efficiency.
-
-# Comments for potential changes in other files:
-# - Ensure that the database session management is implemented in the routers to handle
-#   database connections efficiently.
-# - Validate that all API endpoints are correctly documented and tested for expected behavior.
-# - Consider implementing additional logging configurations to capture detailed logs
-#   for monitoring and debugging purposes.

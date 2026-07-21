@@ -16,16 +16,19 @@ from sqlalchemy.orm import Session
 
 # Internal imports
 from src.backend.reporting_financials_service.app.models.models import FinancialReport
-from src.backend.reporting_financials_service.app.routers.financials import financials_router
-from src.backend.reporting_financials_service.config import Config
+# financials.py defines the APIRouter as `router`; import it under the local alias
+# financials_router (the module never defined a symbol literally named financials_router).
+from src.backend.reporting_financials_service.app.routers.financials import router as financials_router
+from src.backend.reporting_financials_service.config import Config, config
 
 # External imports
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from pydantic import BaseModel
 
-# Configure logging
-logging.basicConfig(level=Config.LOG_LEVEL)
+# Configure logging. Read LOG_LEVEL from the config instance (Pydantic v1 does not expose
+# field values on the class), avoiding the AttributeError that Config.LOG_LEVEL raised.
+logging.basicConfig(level=config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 # Global variable for the FastAPI application
@@ -48,7 +51,7 @@ def create_app() -> FastAPI:
         version=config.API_VERSION
     )
 
-    # Configure CORS
+    # Configure CORS — origins restricted to the explicit allow-list from config.CORS_ORIGINS (CWE-942); credentials enabled only for listed origins
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.CORS_ORIGINS,

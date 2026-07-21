@@ -9,7 +9,8 @@
 #   from the PostgreSQL database.
 
 import logging
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel  # version 1.8.2
 import jwt  # PyJWT version 2.3.0
@@ -17,10 +18,26 @@ import jwt  # PyJWT version 2.3.0
 from src.backend.api_gateway.app.models.models import ExampleModel, Company, MetricsInput, QuarterlyReportingFinancials, QuarterlyReportingMetrics
 from src.backend.api_gateway.app.routers.routes import setup_routes
 from src.backend.api_gateway.config import Settings
-from src.backend.authentication_service.app.security import generate_token, validate_token
+from src.backend.authentication_service.app.security import (
+    generate_token,
+    validate_token,
+    log_security_event,
+    get_correlation_id,
+    pseudonymize,
+    install_security_logging,
+)
 
-# Initialize logging
-logging.basicConfig(level=logging.INFO)
+# Structured security-event logging (FR-8.5 / FR-10.6): configure only the
+# dedicated "omers.security" logger; root handlers are left to the host.
+_security_logger = logging.getLogger("omers.security")
+if not _security_logger.handlers:
+    _security_handler = logging.StreamHandler()
+    _security_handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
+    )
+    _security_logger.addHandler(_security_handler)
+    _security_logger.setLevel(logging.INFO)
+    _security_logger.propagate = False
 logger = logging.getLogger(__name__)
 
 def create_app() -> FastAPI:
@@ -41,6 +58,7 @@ def create_app() -> FastAPI:
     )
 
     # Configure CORS
+    # CORS allow-list (CWE-942)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -49,16 +67,28 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Correlation-id propagation + scoped CORS-rejection security events (CWE-942)
+    install_security_logging(app, service="api_gateway", allowed_origins=settings.cors_origins)
+
     # Set up API routes
     setup_routes(app)
 
     # Integrate JWT token generation and validation
     @app.post("/token")
-    async def login_for_access_token(username: str, password: str):
+    async def login_for_access_token(request: Request, username: str, password: str):
         """
         Endpoint for generating JWT tokens for secure API access.
         """
         if not authenticate_user(username, password):
+            # Security-event logging (FR-8.5 / FR-10.6)
+            # Username is pseudonymized (CWE-532 / CWE-117); one request-correlated event.
+            log_security_event(
+                service="api_gateway",
+                event="authentication_failure",
+                outcome="denied",
+                correlation_id=get_correlation_id(request),
+                subject=pseudonymize(username),
+            )
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect username or password",
@@ -67,7 +97,13 @@ def create_app() -> FastAPI:
         access_token = generate_token(username)
         return {"access_token": access_token, "token_type": "bearer"}
 
-    async def get_current_user(token: str = Depends(validate_token)):
+    # OAuth2 bearer scheme: extracts the JWT from the "Authorization: Bearer <token>"
+    # header (401 if absent). Mirrors the authentication_service pattern; replaces the
+    # prior Depends(validate_token) that exposed the raw token as a query parameter and
+    # then validated it twice, so /protected could never return 200.
+    oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+    async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)):
         """
         Dependency for validating JWT tokens to ensure secure API access.
         """
@@ -78,6 +114,14 @@ def create_app() -> FastAPI:
         )
         username = validate_token(token)
         if username is None:
+            # Security-event logging (FR-8.5 / FR-10.6)
+            log_security_event(
+                service="api_gateway",
+                event="token_validation_failure",
+                outcome="denied",
+                correlation_id=get_correlation_id(request),
+                reason="missing_subject",
+            )
             raise credentials_exception
         return username
 

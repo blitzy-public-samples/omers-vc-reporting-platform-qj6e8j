@@ -89,7 +89,10 @@ async def create_reporting_metric(
     Raises:
         HTTPException: If there's an error creating the metric.
     """
-    db_metric = ReportingMetrics(**metric.dict())
+    # exclude_none so unset fields (e.g. created_date / last_update_date) are omitted from the
+    # INSERT and populated by the DB defaults (CURRENT_TIMESTAMP), rather than sending explicit
+    # NULL into NOT NULL columns.
+    db_metric = ReportingMetrics(**metric.dict(exclude_none=True))
     db.add(db_metric)
     try:
         db.commit()

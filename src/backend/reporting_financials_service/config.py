@@ -9,7 +9,8 @@ Requirements addressed:
 """
 
 import os
-from pydantic import BaseSettings, PostgresDsn, SecretStr
+from typing import List, Union
+from pydantic import BaseSettings, PostgresDsn, SecretStr, Field, validator
 
 class Config(BaseSettings):
     """
@@ -20,10 +21,13 @@ class Config(BaseSettings):
     """
 
     # Database configuration
-    DATABASE_URL: PostgresDsn = os.getenv("DATABASE_URL", "postgresql://<username>:<password>@<host>:<port>/<database_name>")
+    # Required from the environment; no default (a placeholder default would let the
+    # service start with an unusable/misleading DSN). Fail closed if unset.
+    DATABASE_URL: PostgresDsn = Field(..., env="DATABASE_URL")
 
     # API configuration
-    API_KEY: SecretStr = os.getenv("API_KEY", "<your_api_key_here>")
+    # CWE-798/CWE-259: require from the environment; no predictable placeholder default.
+    API_KEY: SecretStr = Field(..., env="API_KEY")
 
     # Logging configuration
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
@@ -33,12 +37,76 @@ class Config(BaseSettings):
     API_VERSION: str = "v1"
 
     # CORS settings
-    CORS_ORIGINS: list = ["*"]  # In production, specify allowed origins
+    # Union[str, List[str]] keeps Pydantic v1 from JSON-parsing the env var, so the
+    # documented comma-separated CORS_ORIGINS string reaches the validator (see .env.sample / README).
+    CORS_ORIGINS: Union[str, List[str]] = ["http://localhost:3000"]  # CWE-942: no wildcard; restrict origins
 
     # JWT settings for authentication
-    JWT_SECRET_KEY: SecretStr = os.getenv("JWT_SECRET_KEY", "your-secret-key")
+    JWT_SECRET_KEY: SecretStr = Field(..., min_length=32, env="JWT_SECRET_KEY")  # CWE-798/CWE-259: require from env, min length 32
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    @validator('CORS_ORIGINS', pre=True, always=True, allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
+    def _parse_and_validate_cors_origins(cls, v):
+        # Accept comma-separated CORS_ORIGINS (see .env.sample / README) and reject
+        # wildcard, empty, or malformed origins (CWE-942). Each entry must be a
+        # serialized origin: http(s) scheme + host, optional valid port, and no
+        # credentials, path, query, or fragment.
+        if isinstance(v, str):
+            v = [origin.strip() for origin in v.split(',') if origin.strip()]
+        from urllib.parse import urlsplit
+        if not v:
+            raise ValueError("CORS_ORIGINS must be a non-empty explicit allow-list; wildcard '*' is not permitted.")
+        for origin in v:
+            if origin == '*':
+                raise ValueError("Wildcard '*' CORS origin is not permitted with credentials (CWE-942).")
+            parts = urlsplit(origin)
+            try:
+                parts.port  # accessing an invalid port raises ValueError
+            except ValueError:
+                raise ValueError(f"Invalid CORS origin (bad port): {origin}")
+            if (parts.scheme not in ('http', 'https')
+                    or not parts.hostname
+                    or parts.username is not None
+                    or parts.password is not None
+                    or parts.path
+                    or parts.query
+                    or parts.fragment):
+                raise ValueError(
+                    f"Invalid CORS origin (expected scheme://host[:port] with no "
+                    f"credentials/path/query/fragment): {origin}"
+                )
+        return v
+
+    @validator('API_KEY', allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
+    def _reject_placeholder_api_key(cls, v):
+        # CWE-798/CWE-259: require a real key from the environment. Reject blank/
+        # whitespace-only values and the shipped placeholder so the service fails closed
+        # rather than run with a predictable credential.
+        s = v.get_secret_value()
+        if not s.strip() or s.strip() == "<your_api_key_here>":
+            raise ValueError(
+                "API_KEY must be provided via the environment; blank or placeholder "
+                "values are not permitted."
+            )
+        return v
+
+    @validator('JWT_SECRET_KEY', allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
+    def _reject_blank_jwt_secret(cls, v):
+        # CWE-798/CWE-259: a whitespace-only value satisfies min_length but carries no
+        # entropy and is trivially predictable; reject blank/whitespace-only secrets.
+        if not v.get_secret_value().strip():
+            raise ValueError("JWT_SECRET_KEY must not be blank or whitespace-only.")
+        return v
+
+    @validator('JWT_ALGORITHM', allow_reuse=True)  # allow_reuse: reload-safe under importlib.reload
+    def _validate_jwt_algorithm(cls, v):
+        # CWE-347: restrict token signing to vetted HMAC algorithms; reject 'none' and any
+        # unlisted/asymmetric value to prevent algorithm-confusion attacks.
+        allowed = {'HS256', 'HS384', 'HS512'}
+        if v not in allowed:
+            raise ValueError(f"JWT_ALGORITHM must be one of {sorted(allowed)}; got {v!r}.")
+        return v
 
     class Config:
         env_file = ".env"

@@ -1,5 +1,5 @@
-# Use a base image with Python 3.8 or higher
-FROM python:3.8-slim
+# Use a maintained Python base image (python:3.8-slim reached end-of-life; CWE-1104)
+FROM python:3.10-slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -21,6 +21,10 @@ ENV APP_MODULE=main:app
 # Expose the port that the FastAPI application will run on
 EXPOSE 8000
 
+# Run as non-root user for better security (CWE-250)
+RUN adduser --disabled-password --gecos '' appuser
+USER appuser
+
 # Define the command to run the FastAPI application using Uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 
@@ -33,7 +37,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 # access to the backend platform and its resources.
 
 # Additional comments for a junior developer:
-# - The base image python:3.8-slim is used to ensure a minimal image size while providing Python 3.8+.
+# - The base image python:3.10-slim is used to ensure a minimal image size on a maintained Python runtime.
 # - We set the working directory to /app to keep our application code organized within the container.
 # - Dependencies are installed first (before copying the app code) to leverage Docker's layer caching.
 # - Environment variables are set to optimize Python's behavior in a containerized environment.

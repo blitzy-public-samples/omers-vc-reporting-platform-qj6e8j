@@ -14,7 +14,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Internal imports
 from src.backend.authentication_service.config import load_config
-from src.backend.authentication_service.app.security import generate_token, validate_token
+from src.backend.authentication_service.app.security import (
+    generate_token,
+    validate_token,
+    install_security_logging,
+)
 
 # Initialize FastAPI application
 app = FastAPI(
@@ -29,11 +33,14 @@ config = load_config()
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=config['CORS_ORIGINS'],
+    allow_origins=config['CORS_ORIGINS'],  # CORS allow-list (CWE-942)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Correlation-id propagation + scoped CORS-rejection security events (CWE-942)
+install_security_logging(app, service="authentication_service", allowed_origins=config['CORS_ORIGINS'])
 
 # Initialize security utilities
 token_generator = generate_token

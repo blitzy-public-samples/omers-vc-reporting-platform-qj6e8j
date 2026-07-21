@@ -1,0 +1,36 @@
+# Keep secrets, VCS metadata, caches, tests, and build artifacts out of the build
+# context so `COPY . .` cannot bake them into image layers (CWE-798). Patterns use
+# the `**/` prefix so they match at any directory depth.
+
+# Environment files / secrets
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Version control
+.git
+.gitignore
+.gitattributes
+
+# Python bytecode and caches
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+
+# Tests and local tooling
+**/tests
+**/conftest.py
+
+# Build / packaging / virtualenv artifacts
+**/build
+**/dist
+**/*.egg-info
+**/.venv
+**/venv
+
+# Container metadata
+Dockerfile
+.dockerignore

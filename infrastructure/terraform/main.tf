@@ -12,25 +12,9 @@ terraform {
   }
 }
 
-# Configure the Microsoft Azure Provider
-provider "azurerm" {
-  features {}
-}
-
-# Import variables from variables.tf
-variable "resource_group_name" {}
-variable "location" {}
-variable "app_service_plan_name" {}
-variable "app_service_name" {}
-variable "postgresql_server_name" {}
-variable "postgresql_database_name" {}
-variable "storage_account_name" {}
-variable "function_app_name" {}
-
-# Import backend configuration from backend.tf
-terraform {
-  backend "azurerm" {}
-}
+# Provider, backend, and input-variable declarations live once in backend.tf and
+# variables.tf; they are intentionally not redeclared here to avoid duplicate
+# definitions that break `terraform validate`.
 
 # Create a resource group
 resource "azurerm_resource_group" "rg" {
@@ -99,7 +83,7 @@ resource "azurerm_postgresql_server" "postgresql" {
   auto_grow_enabled            = true
 
   administrator_login          = "psqladmin"
-  administrator_login_password = "H@Sh1CoR3!"
+  administrator_login_password = var.postgresql_admin_password
   version                      = "11"
   ssl_enforcement_enabled      = true
 
@@ -148,24 +132,11 @@ resource "azurerm_function_app" "function_app" {
   }
 
   site_config {
-    linux_fx_version = "PYTHON|3.9"
+    linux_fx_version = "PYTHON|3.11"
   }
 
   tags = {
     Environment = "Production"
     Project     = "OMERS Ventures Backend Platform"
   }
-}
-
-# Output resource information
-output "app_service_default_hostname" {
-  value = azurerm_app_service.app_service.default_site_hostname
-}
-
-output "postgresql_server_fqdn" {
-  value = azurerm_postgresql_server.postgresql.fqdn
-}
-
-output "function_app_default_hostname" {
-  value = azurerm_function_app.function_app.default_hostname
 }

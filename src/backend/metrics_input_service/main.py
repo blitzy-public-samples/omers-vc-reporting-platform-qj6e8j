@@ -41,7 +41,7 @@ def create_app() -> FastAPI:
     # Load configuration settings
     settings = Settings()
 
-    # Configure CORS
+    # Configure CORS — CWE-942: origins restricted to explicit non-wildcard allow-list (settings.CORS_ORIGINS)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.CORS_ORIGINS,
